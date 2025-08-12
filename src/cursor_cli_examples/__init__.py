@@ -1,6 +1,6 @@
 """Minimal package for Cursor CLI examples."""
 
-__all__ = ["add", "subtract", "multiply", "divide", "hello"]
+__all__ = ["add", "subtract", "multiply", "divide", "hello", "power"]
 
 def hello() -> str:
     return "Hello world!"
@@ -34,3 +34,13 @@ def divide(left: int, right: int) -> float:
     if right == 0:
         raise ZeroDivisionError("division by zero")
     return left / right
+
+
+def power(base: int, exponent: int) -> int:
+    """Return base raised to a non-negative integer exponent.
+
+    Raises ValueError when exponent is negative.
+    """
+    if exponent < 0:
+        raise ValueError("exponent must be non-negative")
+    return base ** exponent
