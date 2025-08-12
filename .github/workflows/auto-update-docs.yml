@@ -45,48 +45,29 @@ jobs:
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
 
-          # Discover previous docs branch state if it exists
-          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
-          if git ls-remote --exit-code --heads origin "${DOCS_BRANCH}" >/dev/null 2>&1; then
-            export PREV_DOCS_SHA=$(git rev-parse --verify "origin/${DOCS_BRANCH}")
-          else
-            export PREV_DOCS_SHA=""
-          fi
+          cursor-agent -p "You are operating in a GitHub Actions runner.
 
-          # Ensure the docs branch exists; if missing, create it from the PR head branch
-          if [ -z "${PREV_DOCS_SHA}" ]; then
-            # Ensure we have a local tracking branch for HEAD_REF
-            git fetch origin "${HEAD_REF}:${HEAD_REF}" || true
-            git checkout -B "${DOCS_BRANCH}" "${HEAD_REF}"
-            git push -u origin "${DOCS_BRANCH}"
-            # Return to the PR HEAD branch
-            git checkout "${HEAD_REF}"
-          fi
+          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs.
 
-          cursor-agent -p "You are operating in a GitHub Actions runner.  
+          Goal:
+          - Implement an end-to-end docs update flow driven by incremental changes to the original PR.
 
-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+          Requirements:
+          1) Determine what changed in the original PR and, if there have been multiple pushes, compute the incremental diffs since the last successful docs update.
+          2) Update only the relevant docs based on those incremental changes.
+          3) Maintain a persistent docs branch named \`${DOCS_BRANCH}\` associated with this PR head (\`${HEAD_REF}\`). Create it if missing, update it otherwise, and push changes to origin.
+          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
+             Here's a PR for docs: [Docs for PR #${PR_NUMBER} (${DOCS_BRANCH} → ${HEAD_REF})](https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1)
 
-          Task:
-          1. Determine what changed since the docs branch was last updated:
-             - Docs branch name: ${DOCS_BRANCH}
-             - Previous docs branch commit (if any): ${PREV_DOCS_SHA}
-             - Compare \`origin/${DOCS_BRANCH}\` (if exists) against \`${HEAD_REF}\` to understand code changes since last docs update.
-          2. Update only relevant documentation to reflect new/changed behavior.
-          3. Keep changes minimal, accurate, and consistent with repository style.
-          4. Create or update a stable docs branch named \`${DOCS_BRANCH}\` with your documentation updates and push it to origin.
-          5. Do NOT attempt to open a PR automatically. Instead, post a single, very short comment on the original PR that contains ONLY this URL (no other text):
-             https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1
+          Inputs and conventions:
+          - Env vars: REPO=${REPO}, OWNER=${OWNER}, PR_NUMBER=${PR_NUMBER}, BASE_REF=${BASE_REF}, HEAD_REF=${HEAD_REF}, DOCS_BRANCH=${DOCS_BRANCH}.
+          - Use \`gh pr diff ${PR_NUMBER}\` and git history to detect changes and derive incremental ranges since the last docs update.
+          - Do not attempt to create or edit PRs directly. Use the compare link format above.
+          - Keep changes minimal and consistent with repo style. If no doc updates are necessary, make no changes and post no comment.
 
-          Guidance:
-          - Use env vars: REPO, OWNER, PR_NUMBER, BASE_REF, HEAD_REF, DOCS_BRANCH, PREV_DOCS_SHA.
-          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff for the original PR; also use \`git\` to compare \`origin/${DOCS_BRANCH}\` to \`${HEAD_REF}\` when needed.
-          - Derive the compare URL using HEAD_REF as base and DOCS_BRANCH as head for the docs-only PR form.
-          - Prefer the smallest safe change set.
-          - If no documentation updates are necessary, exit without changes.
-
-          Deliverables (if changes are made):
-          - Push the \`${DOCS_BRANCH}\` updates and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
+          Deliverables when updates occur:
+          - Pushed commits to \`${DOCS_BRANCH}\`.
+          - A single new PR comment on the original PR with the human-readable markdown link format above. Avoid posting duplicates; update a previous bot comment if present.
 
           Event payload JSON:
           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
