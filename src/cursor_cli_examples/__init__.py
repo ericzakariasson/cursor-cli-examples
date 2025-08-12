@@ -10,7 +10,7 @@ def add(left: int, right: int) -> int:
 
     This simple function provides something for tests to exercise.
     """
-    return left - right
+    return left + right
 
 
 def subtract(left: int, right: int) -> int:
