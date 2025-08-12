@@ -54,7 +54,7 @@ jobs:
           2. Update only relevant documentation to reflect new/changed behavior.
           3. Keep changes minimal, accurate, and consistent with repository style.
           4. Create a new PR stacked on top of the original PR with your documentation updates.
-          5. Comment on the original PR with a link to the new PR.
+          5. Post a very short comment on the original PR that contains ONLY a link to the diff of your new PR (no extra text).
 
           Allowed scope of edits:
           - \`README*.md\` (root and subdirectories)
@@ -65,11 +65,12 @@ jobs:
           Guidance:
           - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
           - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
+          - When commenting, include only a single URL to the diff view of the new PR (e.g., \`https://github.com/${REPO}/pull/<NEW_PR_NUMBER>/files\`) with no additional wording.
           - Prefer the smallest safe change set.
           - If no documentation updates are necessary, exit without changes.
 
           Deliverables (if changes are made):
-          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
+          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR that contains only the diff link to the new PR.
 
           Event payload JSON:
           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
