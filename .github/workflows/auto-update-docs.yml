@@ -45,7 +45,7 @@ jobs:
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
 
-          cursor-agent -p --force "You are operating in a GitHub Actions runner.  
+          cursor-agent -p "You are operating in a GitHub Actions runner.  
 
           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
 
@@ -72,4 +72,4 @@ jobs:
           - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
 
           Event payload JSON:
-          ${EVENT_JSON}" --model "$MODEL" --output-format=text
+          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
