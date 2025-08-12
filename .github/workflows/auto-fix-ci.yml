@@ -49,27 +49,27 @@ jobs:
 
           cursor-agent -p "You are operating in a GitHub Actions runner.
 
-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
 
-          Task:
-          1. Access the failed branch for the triggering workflow run.
-          2. Download and inspect the logs of the failed job.
-          3. Get the diff of the failed PR.
-          4. Attempt to resolve the issue by making minimal, targeted edits consistent with the repo's style.
-          5. Push a new branch stacked on top of the failing PR's branch; do NOT attempt to open a PR automatically.
-          6. Post a single, very short comment on the original PR that contains ONLY this URL (no other text):
-             https://github.com/${REPO}/compare/<BASE_REF>...<HEAD_REF>?quick_pull=1
+          Goal:
+          - Implement an end-to-end CI fix flow driven by the failing PR, creating a separate persistent fix branch and proposing a quick-create PR back into the original PR's branch.
 
-          Guidance:
-          - Use env vars REPO, OWNER, WORKFLOW_RUN_ID, WORKFLOW_RUN_URL.
-          - Use \`gh api\`, \`gh run download\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, and git commands as needed.
-          - Derive <BASE_REF> and <HEAD_REF> for the compare URL from the failing PR metadata (base and head branches).
-          - Prefer the smallest safe change. Do not alter secrets, licensing, or unrelated config.
-          - If uncertain about a risky change, leave a brief rationale in modified files.
-          - If no actionable fix is possible, exit without changes.
+          Requirements:
+          1) Identify the PR associated with the failed workflow run and determine its base and head branches. Let HEAD_REF be the PR's head branch (the contributor/origin branch).
+          2) Maintain a persistent fix branch named \`ci-fix/${HEAD_REF}\` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
+          3) Attempt to resolve the CI failure by making minimal, targeted edits consistent with the repo's style. Keep changes scoped and safe.
+          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
+             Here's a PR to fix CI: [Fix CI for PR #<PR_NUMBER> (ci-fix/<HEAD_REF> → <HEAD_REF>)](https://github.com/${REPO}/compare/<HEAD_REF>...ci-fix/<HEAD_REF>?quick_pull=1)
 
-          Deliverables (if changes are made):
-          - Push a new branch stacked on the failing PR's branch and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
+          Inputs and conventions:
+          - Env vars: REPO=${REPO}, OWNER=${OWNER}, WORKFLOW_RUN_ID=${WORKFLOW_RUN_ID}, WORKFLOW_RUN_URL=${WORKFLOW_RUN_URL}.
+          - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
+          - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
+          - If no actionable fix is possible, make no changes and post no comment.
+
+          Deliverables when updates occur:
+          - Pushed commits to \`ci-fix/${HEAD_REF}\`.
+          - A single new PR comment on the original PR with the human-readable markdown link format above.
 
           Event payload JSON:
           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
