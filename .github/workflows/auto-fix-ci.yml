@@ -35,7 +35,7 @@ jobs:
           echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
           echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
 
-      - name: Run Cursor agent (headless) to fix failing CI
+      - name: Fix CI failure
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MODEL: gpt-5
@@ -47,7 +47,7 @@ jobs:
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
 
-          cursor-agent -p --force "You are operating in a GitHub Actions runner.
+          cursor-agent -p "You are operating in a GitHub Actions runner.
 
           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
 
@@ -56,18 +56,20 @@ jobs:
           2. Download and inspect the logs of the failed job.
           3. Get the diff of the failed PR.
           4. Attempt to resolve the issue by making minimal, targeted edits consistent with the repo's style.
-          5. Create a new PR to the failed PR with your attempted fix.
-          6. Comment on the failed PR with a link to the new PR.
+          5. Push a new branch stacked on top of the failing PR's branch; do NOT attempt to open a PR automatically.
+          6. Post a single, very short comment on the original PR that contains ONLY this URL (no other text):
+             https://github.com/${REPO}/compare/<BASE_REF>...<HEAD_REF>?quick_pull=1
 
           Guidance:
           - Use env vars REPO, OWNER, WORKFLOW_RUN_ID, WORKFLOW_RUN_URL.
           - Use \`gh api\`, \`gh run download\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, and git commands as needed.
+          - Derive <BASE_REF> and <HEAD_REF> for the compare URL from the failing PR metadata (base and head branches).
           - Prefer the smallest safe change. Do not alter secrets, licensing, or unrelated config.
           - If uncertain about a risky change, leave a brief rationale in modified files.
           - If no actionable fix is possible, exit without changes.
 
           Deliverables (if changes are made):
-          - Push a new branch, open a PR targeting the failing PR's branch (stacked on top), and post a comment on the original PR linking to the new PR.
+          - Push a new branch stacked on the failing PR's branch and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
 
           Event payload JSON:
-          ${EVENT_JSON}" --model "$MODEL" --output-format=text
+          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
