@@ -53,6 +53,16 @@ jobs:
             export PREV_DOCS_SHA=""
           fi
 
+          # Ensure the docs branch exists; if missing, create it from the PR head branch
+          if [ -z "${PREV_DOCS_SHA}" ]; then
+            # Ensure we have a local tracking branch for HEAD_REF
+            git fetch origin "${HEAD_REF}:${HEAD_REF}" || true
+            git checkout -B "${DOCS_BRANCH}" "${HEAD_REF}"
+            git push -u origin "${DOCS_BRANCH}"
+            # Return to the PR HEAD branch
+            git checkout "${HEAD_REF}"
+          fi
+
           cursor-agent -p "You are operating in a GitHub Actions runner.  
 
           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
