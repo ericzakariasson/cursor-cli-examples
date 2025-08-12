@@ -41,7 +41,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
-          DOCS_BRANCH: ${{ format('{0}-docs', github.head_ref) }}
+          DOCS_BRANCH: ${{ format('docs/{0}', github.head_ref) }}
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
 
