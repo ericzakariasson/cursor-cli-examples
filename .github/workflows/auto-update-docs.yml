@@ -39,33 +39,39 @@ jobs:
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
+          DOCS_BRANCH: ${{ format('{0}-docs', github.head_ref) }}
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+
+          # Discover previous docs branch state if it exists
+          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
+          if git ls-remote --exit-code --heads origin "${DOCS_BRANCH}" >/dev/null 2>&1; then
+            export PREV_DOCS_SHA=$(git rev-parse --verify "origin/${DOCS_BRANCH}")
+          else
+            export PREV_DOCS_SHA=""
+          fi
 
           cursor-agent -p "You are operating in a GitHub Actions runner.  
 
           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
 
           Task:
-          1. Fetch the PR diff for PR_NUMBER and understand the changes.
+          1. Determine what changed since the docs branch was last updated:
+             - Docs branch name: ${DOCS_BRANCH}
+             - Previous docs branch commit (if any): ${PREV_DOCS_SHA}
+             - Compare \`origin/${DOCS_BRANCH}\` (if exists) against \`${HEAD_REF}\` to understand code changes since last docs update.
           2. Update only relevant documentation to reflect new/changed behavior.
           3. Keep changes minimal, accurate, and consistent with repository style.
-          4. Create a new PR stacked on top of the original PR with your documentation updates.
-          5. Post a very short comment on the original PR that contains ONLY a link to the diff of your new PR (no extra text).
-
-          Allowed scope of edits:
-          - \`README*.md\` (root and subdirectories)
-          - \`docs/**\` and \`documentation/**\`
-          - \`CHANGELOG.md\`, ADRs, architecture docs, API docs
-          - Inline code comments only when essential to clarify behavior. Do not alter code logic.
+          4. Create or update a stable docs branch named \`${DOCS_BRANCH}\` with your documentation updates and push it to origin.
+          5. Open or update a PR from \`${DOCS_BRANCH}\` into \`${HEAD_REF}\` (stacked onto the original PR branch).
+          6. Post a very short comment on the original PR that contains ONLY a link to the diff of your docs PR (no extra text).
 
           Guidance:
-          - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
-          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
-          - When commenting, include only a single URL to the diff view of the new PR (e.g., \`https://github.com/${REPO}/pull/<NEW_PR_NUMBER>/files\`) with no additional wording.
+          - Use env vars: REPO, OWNER, PR_NUMBER, BASE_REF, HEAD_REF, DOCS_BRANCH, PREV_DOCS_SHA.
+          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff for the original PR; also use \`git\` to compare \`origin/${DOCS_BRANCH}\` to \`${HEAD_REF}\` when needed.
+          - When commenting, include only a single URL to the diff view of the docs PR (e.g., \`https://github.com/${REPO}/pull/<DOCS_PR_NUMBER>/files\`) with no additional wording.
           - Prefer the smallest safe change set.
           - If no documentation updates are necessary, exit without changes.
 
