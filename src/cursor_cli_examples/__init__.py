@@ -1,6 +1,6 @@
 """Minimal package for Cursor CLI examples."""
 
-__all__ = ["add", "subtract", "multiply", "hello"]
+__all__ = ["add", "subtract", "multiply", "divide", "hello"]
 
 def hello() -> str:
     return "Hello world!"
@@ -24,3 +24,13 @@ def multiply(left: int, right: int) -> int:
     This complements `add` and `subtract` with a simple multiplicative operation.
     """
     return left * right
+
+
+def divide(left: int, right: int) -> float:
+    """Return the quotient of two integers as a float.
+
+    Raises ZeroDivisionError when right is 0.
+    """
+    if right == 0:
+        raise ZeroDivisionError("division by zero")
+    return left / right
