@@ -47,7 +47,7 @@ jobs:
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
 
-          cursor-agent -p "You are operating in a GitHub Actions runner.
+          cursor-agent -p --force "You are operating in a GitHub Actions runner.  
 
           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
 
