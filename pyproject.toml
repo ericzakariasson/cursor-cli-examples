@@ -1,0 +1,19 @@
+[project]
+name = "cursor_cli_examples"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=cursor_cli_examples --cov-report=term-missing"
+testpaths = ["tests"]

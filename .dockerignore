@@ -1,0 +1,34 @@
+# Ignore Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test/coverage artifacts
+.tox/
+.nox/
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# VCS
+.git/
+.gitignore
+
+# IDE/editor
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+
+# Cursor
+.cursor/
+

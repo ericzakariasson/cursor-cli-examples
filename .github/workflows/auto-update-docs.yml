@@ -1,0 +1,75 @@
+name: Auto Update Docs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
+          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
+          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+
+      - name: Run Cursor agent (headless) to update docs based on PR diff
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+
+          cursor-agent -p "You are operating in a GitHub Actions runner.
+
+          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+
+          Task:
+          1. Fetch the PR diff for PR_NUMBER and understand the changes.
+          2. Update only relevant documentation to reflect new/changed behavior.
+          3. Keep changes minimal, accurate, and consistent with repository style.
+          4. Create a new PR stacked on top of the original PR with your documentation updates.
+          5. Comment on the original PR with a link to the new PR.
+
+          Allowed scope of edits:
+          - \`README*.md\` (root and subdirectories)
+          - \`docs/**\` and \`documentation/**\`
+          - \`CHANGELOG.md\`, ADRs, architecture docs, API docs
+          - Inline code comments only when essential to clarify behavior. Do not alter code logic.
+
+          Guidance:
+          - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
+          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
+          - Prefer the smallest safe change set.
+          - If no documentation updates are necessary, exit without changes.
+
+          Deliverables (if changes are made):
+          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
+
+          Event payload JSON:
+          ${EVENT_JSON}" --model "$MODEL" --output-format=text

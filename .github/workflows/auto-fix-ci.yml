@@ -1,0 +1,73 @@
+name: Auto Fix CI Failures
+
+on:
+  workflow_run:
+    workflows: [Test]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  attempt-fix:
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Auto Fix CI Failures' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
+          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
+          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+
+      - name: Run Cursor agent (headless) to fix failing CI
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+
+          cursor-agent -p "You are operating in a GitHub Actions runner.
+
+          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+
+          Task:
+          1. Access the failed branch for the triggering workflow run.
+          2. Download and inspect the logs of the failed job.
+          3. Get the diff of the failed PR.
+          4. Attempt to resolve the issue by making minimal, targeted edits consistent with the repo's style.
+          5. Create a new PR to the failed PR with your attempted fix.
+          6. Comment on the failed PR with a link to the new PR.
+
+          Guidance:
+          - Use env vars REPO, OWNER, WORKFLOW_RUN_ID, WORKFLOW_RUN_URL.
+          - Use \`gh api\`, \`gh run download\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, and git commands as needed.
+          - Prefer the smallest safe change. Do not alter secrets, licensing, or unrelated config.
+          - If uncertain about a risky change, leave a brief rationale in modified files.
+          - If no actionable fix is possible, exit without changes.
+
+          Deliverables (if changes are made):
+          - Push a new branch, open a PR targeting the failing PR's branch (stacked on top), and post a comment on the original PR linking to the new PR.
+
+          Event payload JSON:
+          ${EVENT_JSON}" --model "$MODEL" --output-format=text
