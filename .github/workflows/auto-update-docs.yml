@@ -31,7 +31,7 @@ jobs:
           echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
           echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
 
-      - name: Run Cursor agent (headless) to update docs based on PR diff
+      - name: Update docs
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MODEL: gpt-5
@@ -39,37 +39,54 @@ jobs:
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
+          DOCS_BRANCH: ${{ format('docs/{0}', github.head_ref) }}
         run: |
           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
 
-          cursor-agent -p --force "You are operating in a GitHub Actions runner.  
+          # Discover previous docs branch state if it exists
+          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
+          if git ls-remote --exit-code --heads origin "${DOCS_BRANCH}" >/dev/null 2>&1; then
+            export PREV_DOCS_SHA=$(git rev-parse --verify "origin/${DOCS_BRANCH}")
+          else
+            export PREV_DOCS_SHA=""
+          fi
+
+          # Ensure the docs branch exists; if missing, create it from the PR head branch
+          if [ -z "${PREV_DOCS_SHA}" ]; then
+            # Ensure we have a local tracking branch for HEAD_REF
+            git fetch origin "${HEAD_REF}:${HEAD_REF}" || true
+            git checkout -B "${DOCS_BRANCH}" "${HEAD_REF}"
+            git push -u origin "${DOCS_BRANCH}"
+            # Return to the PR HEAD branch
+            git checkout "${HEAD_REF}"
+          fi
+
+          cursor-agent -p "You are operating in a GitHub Actions runner.  
 
           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
 
           Task:
-          1. Fetch the PR diff for PR_NUMBER and understand the changes.
+          1. Determine what changed since the docs branch was last updated:
+             - Docs branch name: ${DOCS_BRANCH}
+             - Previous docs branch commit (if any): ${PREV_DOCS_SHA}
+             - Compare \`origin/${DOCS_BRANCH}\` (if exists) against \`${HEAD_REF}\` to understand code changes since last docs update.
           2. Update only relevant documentation to reflect new/changed behavior.
           3. Keep changes minimal, accurate, and consistent with repository style.
-          4. Create a new PR stacked on top of the original PR with your documentation updates.
-          5. Comment on the original PR with a link to the new PR.
-
-          Allowed scope of edits:
-          - \`README*.md\` (root and subdirectories)
-          - \`docs/**\` and \`documentation/**\`
-          - \`CHANGELOG.md\`, ADRs, architecture docs, API docs
-          - Inline code comments only when essential to clarify behavior. Do not alter code logic.
+          4. Create or update a stable docs branch named \`${DOCS_BRANCH}\` with your documentation updates and push it to origin.
+          5. Do NOT attempt to open a PR automatically. Instead, post a single, very short comment on the original PR that contains ONLY this URL (no other text):
+             https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1
 
           Guidance:
-          - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
-          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
+          - Use env vars: REPO, OWNER, PR_NUMBER, BASE_REF, HEAD_REF, DOCS_BRANCH, PREV_DOCS_SHA.
+          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff for the original PR; also use \`git\` to compare \`origin/${DOCS_BRANCH}\` to \`${HEAD_REF}\` when needed.
+          - Derive the compare URL using HEAD_REF as base and DOCS_BRANCH as head for the docs-only PR form.
           - Prefer the smallest safe change set.
           - If no documentation updates are necessary, exit without changes.
 
           Deliverables (if changes are made):
-          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
+          - Push the \`${DOCS_BRANCH}\` updates and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
 
           Event payload JSON:
-          ${EVENT_JSON}" --model "$MODEL" --output-format=text
+          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
