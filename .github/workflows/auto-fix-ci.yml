@@ -30,46 +30,38 @@ jobs:
         run: |
           git config user.name "Cursor Agent"
           git config user.email "cursoragent@cursor.com"
-          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
-          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
-          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
-          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
 
       - name: Fix CI failure
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MODEL: gpt-5
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
-          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
-          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
-          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
-
           cursor-agent -p "You are operating in a GitHub Actions runner.
 
-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+          You can execute shell commands. The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
 
-          Goal:
+          # Context:
+          - Repo: ${{ github.repository }}
+          - Owner: ${{ github.repository_owner }}
+          - Workflow Run ID: ${{ github.event.workflow_run.id }}
+          - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
+
+          # Goal:
           - Implement an end-to-end CI fix flow driven by the failing PR, creating a separate persistent fix branch and proposing a quick-create PR back into the original PR's branch.
 
-          Requirements:
+          # Requirements:
           1) Identify the PR associated with the failed workflow run and determine its base and head branches. Let HEAD_REF be the PR's head branch (the contributor/origin branch).
-          2) Maintain a persistent fix branch named \`ci-fix/${HEAD_REF}\` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
+          2) Maintain a persistent fix branch named `ci-fix/${HEAD_REF}` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
           3) Attempt to resolve the CI failure by making minimal, targeted edits consistent with the repo's style. Keep changes scoped and safe.
-          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
-             Here's a PR to fix CI: [Fix CI for PR #<PR_NUMBER> (ci-fix/<HEAD_REF> → <HEAD_REF>)](https://github.com/${REPO}/compare/<HEAD_REF>...ci-fix/<HEAD_REF>?quick_pull=1)
+          4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the CI fix and includes an inline compare link to quick-create a PR.
 
-          Inputs and conventions:
-          - Env vars: REPO=${REPO}, OWNER=${OWNER}, WORKFLOW_RUN_ID=${WORKFLOW_RUN_ID}, WORKFLOW_RUN_URL=${WORKFLOW_RUN_URL}.
-          - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
+          # Inputs and conventions:
+          - Use `gh api`, `gh run view`, `gh pr view`, `gh pr diff`, `gh pr list`, `gh run download`, and git commands as needed to discover the failing PR and branches.
           - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
           - If no actionable fix is possible, make no changes and post no comment.
 
-          Deliverables when updates occur:
-          - Pushed commits to \`ci-fix/${HEAD_REF}\`.
-          - A single new PR comment on the original PR with the human-readable markdown link format above.
-
-          Event payload JSON:
-          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+          # Deliverables when updates occur:
+          - Pushed commits to `ci-fix/${HEAD_REF}`.
+          - A single natural-language PR comment on the original PR that includes the inline compare link above.
+          " --force --model "$MODEL" --output-format=text

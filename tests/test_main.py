@@ -1,4 +1,4 @@
-from cursor_cli_examples import add, subtract, multiply, divide, hello
+from cursor_cli_examples import add, subtract, multiply, divide, hello, power
 
 
 def test_hello():
@@ -25,4 +25,17 @@ def test_divide_by_zero():
     import pytest
     with pytest.raises(ZeroDivisionError):
         divide(1, 0)
+
+
+def test_power_basic():
+    assert power(2, 3) == 8
+    assert power(5, 0) == 1
+    assert power(7, 1) == 7
+
+
+def test_power_negative_exponent():
+    import pytest
+    with pytest.raises(ValueError):
+        power(2, -1)
+
 
