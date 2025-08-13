@@ -1,0 +1,67 @@
+name: Auto Translate Keys
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  i18n:
+    if: ${{ !startsWith(github.head_ref, 'translate/') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+
+      - name: Propose i18n updates
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_PREFIX: translate
+        run: |
+          cursor-agent -p "You are operating in a GitHub Actions runner.
+
+          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+
+          # Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ github.event.pull_request.number }}
+          - Head Ref: ${{ github.head_ref }}
+          - Translate Branch Prefix: ${{ env.BRANCH_PREFIX }}
+
+          # Goal:
+          - Detect i18n keys added or changed in the PR and fill only missing locales in message files. Never overwrite existing translations.
+
+          # Requirements:
+          1) Determine changed keys by inspecting the PR diff (source files and messages files).
+          2) Compute missing keys per locale using the source/canonical locale as truth.
+          3) Add entries only for missing keys. Preserve all existing values untouched.
+          4) Validate JSON formatting and schemas.
+          5) Maintain a persistent translate branch for this PR head using the Translate Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
+          6) Post or update a single PR comment on the original PR written in natural language (1–2 sentences) that briefly explains what was updated and why, and includes an inline compare link to quick-create a PR.
+          7) Avoid duplicate comments; update a previous bot comment if present.
+          8) If no changes are necessary, make no commits and post no comment.
+
+          # Inputs and conventions:
+          - Use `gh pr diff` and git history to detect changes.
+
+          # Deliverables when updates occur:
+          - Pushed commits to the persistent translate branch for this PR head.
+          - A single natural-language PR comment on the original PR with the compare link above.
+          " --force --model "$MODEL" --output-format=text

@@ -1,0 +1,58 @@
+name: Auto Improve PR Description
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+
+      - name: Update PR body
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cursor-agent -p "You are operating in a GitHub Actions runner.
+
+          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. You have permission to update PR descriptions.
+
+          # Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ github.event.pull_request.number }}
+
+          # Goal:
+          - Maintain a generated block within the PR body based on the diff and metadata, without overwriting author content outside of that block.
+
+          # Requirements:
+          1) Read the current PR body and metadata.
+          2) Define a marker block delimited by `<!-- cursor-agent:begin -->` and `<!-- cursor-agent:end -->`.
+          3) Replace only the content inside that block with structured sections derived from the diff, labels, linked issues, and tests: Summary, Motivation, Risks, Test Plan, Affected Areas, Breaking Changes.
+          4) Preserve all content outside markers verbatim. If no marker exists, append one to the end of the body.
+          5) Ensure idempotent updates: reruns should only change the inner block.
+          6) Write the updated body to a temp file and apply the change.
+          7) If there is no meaningful change, do nothing.
+
+          # Inputs and conventions:
+          - Use `gh pr view` and `gh pr diff` to gather data. Avoid duplicate updates.
+          " --force --model "$MODEL" --output-format=text
