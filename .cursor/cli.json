@@ -1,0 +1,6 @@
+{
+  "denylist": [
+    "Shell(git push)",
+    "Shell(gh pr create)"
+  ]
+}
