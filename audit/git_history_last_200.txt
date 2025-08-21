@@ -1,0 +1,2192 @@
+commit 1934cfb34cb3f5b6908dda5d76fd4ec39093858e
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Fri Aug 15 14:43:45 2025 -0700
+
+    chore: update CLI config
+
+diff --git a/.cursor/cli.json b/.cursor/cli.json
+new file mode 100644
+index 0000000..1b184ce
+--- /dev/null
++++ b/.cursor/cli.json
+@@ -0,0 +1,6 @@
++{
++  "denylist": [
++    "Shell(git push)",
++    "Shell(gh pr create)"
++  ]
++}
+\ No newline at end of file
+
+commit b7aa8135c605feb70b1dae1e6dfa269b152bd2c6
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Fri Aug 15 14:41:49 2025 -0700
+
+    ci(docs): split publish and comment steps; remove unused env vars; inline link in PR comment
+
+diff --git a/.github/workflows/auto-update-docs-split.yml b/.github/workflows/auto-update-docs-split.yml
+new file mode 100644
+index 0000000..b6da064
+--- /dev/null
++++ b/.github/workflows/auto-update-docs-split.yml
+@@ -0,0 +1,127 @@
++name: Auto Update Docs (Split)
++
++on:
++  pull_request:
++    types: [opened, synchronize, reopened, ready_for_review]
++
++permissions:
++  contents: write
++  pull-requests: write
++
++jobs:
++  auto-docs-split:
++    if: ${{ !startsWith(github.head_ref, 'docs/') }}
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++
++      - name: Generate docs updates (no commit/push/comment)
++        env:
++          MODEL: gpt-5
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: docs
++        run: |
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available.
++
++          IMPORTANT: Do NOT create branches, commit, push, or post PR comments. Only modify files in the working directory as needed. A later workflow step is responsible for publishing changes and commenting on the PR.
++
++          # Context:
++          - Repo: ${{ github.repository }}
++          - Owner: ${{ github.repository_owner }}
++          - PR Number: ${{ github.event.pull_request.number }}
++          - Base Ref: ${{ github.base_ref }}
++          - Head Ref: ${{ github.head_ref }}
++
++          # Goal:
++          - Update repository documentation based on incremental changes introduced by this PR.
++
++          # Requirements:
++          1) Determine what changed in the original PR (use `gh pr diff` and git history as needed). If an existing persistent docs branch `${{ env.BRANCH_PREFIX }}/${{ github.head_ref }}` exists, you may use it as a read-only reference point to understand prior updates.
++          2) Update only the relevant docs based on those changes. Keep edits minimal and consistent with repo style.
++          3) Do NOT commit, push, create branches, or post PR comments. Leave the working tree with updated files only; a later step will publish.
++
++          # Inputs and conventions:
++          - Use `gh pr diff` and git history to detect changes and focus documentation edits accordingly.
++          - If no doc updates are necessary, make no changes and produce no output.
++
++          # Deliverables when updates occur:
++          - Modified documentation files in the working directory only (no commits/pushes/comments).
++          " --force --model "$MODEL" --output-format=text
++
++      - name: Publish docs branch
++        id: publish_docs
++        env:
++          BRANCH_PREFIX: docs
++          HEAD_REF: ${{ github.head_ref }}
++          PR_NUMBER: ${{ github.event.pull_request.number }}
++        run: |
++          echo "changes_published=false" >> "$GITHUB_OUTPUT"
++
++          DOCS_BRANCH="${BRANCH_PREFIX}/${HEAD_REF}"
++
++          # Ensure we are on a local branch that we can push
++          git fetch origin --prune
++
++          # Create/switch to the persistent docs branch, keeping current working tree changes
++          git checkout -B "$DOCS_BRANCH"
++
++          # Stage and detect changes
++          git add -A
++          if git diff --staged --quiet; then
++            echo "No docs changes to publish. Skipping commit/push."
++            exit 0
++          fi
++
++          COMMIT_MSG="docs: update for PR #${PR_NUMBER} (${HEAD_REF} @ $(git rev-parse --short HEAD))"
++          git commit -m "$COMMIT_MSG"
++          git push --set-upstream origin "$DOCS_BRANCH"
++
++          echo "changes_published=true" >> "$GITHUB_OUTPUT"
++
++      - name: Post or update PR comment
++        if: steps.publish_docs.outputs.changes_published == 'true'
++        env:
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: docs
++          REPO: ${{ github.repository }}
++          BASE_REF: ${{ github.base_ref }}
++          HEAD_REF: ${{ github.head_ref }}
++          PR_NUMBER: ${{ github.event.pull_request.number }}
++        run: |
++
++          DOCS_BRANCH="${BRANCH_PREFIX}/${HEAD_REF}"
++          COMPARE_URL="https://github.com/${REPO}/compare/${BASE_REF}...${DOCS_BRANCH}?quick_pull=1&title=docs%3A+updates+for+PR+%23${PR_NUMBER}"
++
++          COMMENT_FILE="${RUNNER_TEMP}/auto-docs-comment.md"
++          {
++            echo "Cursor updated docs branch: \`${DOCS_BRANCH}\`"
++            echo "You can now [view the diff and quick-create a PR to merge these docs updates](${COMPARE_URL})."
++            echo
++            echo "_This comment will be updated on subsequent runs as the PR changes._"
++            echo
++            echo "<!-- auto-update-docs-split -->"
++          } > "$COMMENT_FILE"
++
++          # If editing the last bot comment fails (older gh), fall back to creating a new comment
++          if gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE" --edit-last; then
++            echo "Updated existing PR comment."
++          else
++            gh pr comment "$PR_NUMBER" --body-file "$COMMENT_FILE"
++            echo "Posted new PR comment."
++          fi
+
+commit bd8e7644f685523f081a47afe8819afb0436ffb0
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 19:16:33 2025 -0700
+
+    chore(workflows): add new automation workflows and update existing ones
+
+diff --git a/.github/workflows/auto-fix-ci.yml b/.github/workflows/auto-fix-ci.yml
+index a5ed3fc..1ea3095 100644
+--- a/.github/workflows/auto-fix-ci.yml
++++ b/.github/workflows/auto-fix-ci.yml
+@@ -36,23 +36,25 @@ jobs:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: ci-fix
+         run: |
+           cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+-          You can execute shell commands. The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+ 
+           # Context:
+           - Repo: ${{ github.repository }}
+           - Owner: ${{ github.repository_owner }}
+           - Workflow Run ID: ${{ github.event.workflow_run.id }}
+           - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
++          - Fix Branch Prefix: ${{ env.BRANCH_PREFIX }}
+ 
+           # Goal:
+           - Implement an end-to-end CI fix flow driven by the failing PR, creating a separate persistent fix branch and proposing a quick-create PR back into the original PR's branch.
+ 
+           # Requirements:
+           1) Identify the PR associated with the failed workflow run and determine its base and head branches. Let HEAD_REF be the PR's head branch (the contributor/origin branch).
+-          2) Maintain a persistent fix branch named `ci-fix/${HEAD_REF}` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
++          2) Maintain a persistent fix branch for this PR head using the Fix Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
+           3) Attempt to resolve the CI failure by making minimal, targeted edits consistent with the repo's style. Keep changes scoped and safe.
+           4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the CI fix and includes an inline compare link to quick-create a PR.
+ 
+@@ -62,6 +64,6 @@ jobs:
+           - If no actionable fix is possible, make no changes and post no comment.
+ 
+           # Deliverables when updates occur:
+-          - Pushed commits to `ci-fix/${HEAD_REF}`.
++          - Pushed commits to the persistent fix branch for this PR head.
+           - A single natural-language PR comment on the original PR that includes the inline compare link above.
+           " --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-fix-conflicts.yml b/.github/workflows/auto-fix-conflicts.yml
+new file mode 100644
+index 0000000..6442744
+--- /dev/null
++++ b/.github/workflows/auto-fix-conflicts.yml
+@@ -0,0 +1,67 @@
++name: Auto Fix Conflicts
++
++on:
++  pull_request:
++    types: [synchronize, reopened, labeled, ready_for_review]
++
++permissions:
++  contents: write
++  pull-requests: write
++  actions: read
++
++jobs:
++  rebase:
++    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'needs-rebase' }}
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git identity
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++
++      - name: Attempt conflict fix
++        env:
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          MODEL: gpt-5
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: conflict-fix
++        run: |
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
++
++          # Context:
++          - Repo: ${{ github.repository }}
++          - PR Number: ${{ github.event.pull_request.number }}
++          - Conflict Fix Branch Prefix: ${{ env.BRANCH_PREFIX }}
++
++          # Goal:
++          - When the PR is unmergeable or behind base, attempt a safe rebase/merge and propose a fix branch.
++
++          # Requirements:
++          1) Identify base and head branches and current mergeability from the PR.
++          2) Maintain a persistent fix branch for this PR head using the Conflict Fix Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
++          3) Prefer `git rebase origin/<base>` for the head; fall back to `git merge` if rebase is not feasible.
++          4) Resolve only deterministic conflicts (lockfiles, snapshots, generated files) using safe strategies. Do not attempt semantic code merges.
++          5) Optionally run a quick build/test if available.
++          6) Post or update a single natural-language PR comment (1–2 sentences) that briefly explains what was resolved and includes an inline compare link to quick-create a PR.
++          7) Never force-push the contributor branch.
++          8) If no actionable fix is possible, make no changes and post no comment.
++
++          # Inputs and conventions:
++          - Use `gh pr view`, `gh pr diff`, and git history as needed. Avoid duplicate comments; update a previous bot comment if present.
++
++          # Deliverables when updates occur:
++          - Pushed commits to the persistent conflict fix branch for this PR head.
++          - A single natural-language PR comment on the original PR that includes the inline compare link above.
++          " --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-improve-pr-description.yml b/.github/workflows/auto-improve-pr-description.yml
+new file mode 100644
+index 0000000..50465c1
+--- /dev/null
++++ b/.github/workflows/auto-improve-pr-description.yml
+@@ -0,0 +1,58 @@
++name: Auto Improve PR Description
++
++on:
++  pull_request:
++    types: [opened, edited, synchronize, reopened, ready_for_review]
++
++permissions:
++  pull-requests: write
++  contents: read
++
++jobs:
++  improve:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git identity
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++
++      - name: Update PR body
++        env:
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          MODEL: gpt-5
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: |
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. You have permission to update PR descriptions.
++
++          # Context:
++          - Repo: ${{ github.repository }}
++          - PR Number: ${{ github.event.pull_request.number }}
++
++          # Goal:
++          - Maintain a generated block within the PR body based on the diff and metadata, without overwriting author content outside of that block.
++
++          # Requirements:
++          1) Read the current PR body and metadata.
++          2) Define a marker block delimited by `<!-- cursor-agent:begin -->` and `<!-- cursor-agent:end -->`.
++          3) Replace only the content inside that block with structured sections derived from the diff, labels, linked issues, and tests: Summary, Motivation, Risks, Test Plan, Affected Areas, Breaking Changes.
++          4) Preserve all content outside markers verbatim. If no marker exists, append one to the end of the body.
++          5) Ensure idempotent updates: reruns should only change the inner block.
++          6) Write the updated body to a temp file and apply the change.
++          7) If there is no meaningful change, do nothing.
++
++          # Inputs and conventions:
++          - Use `gh pr view` and `gh pr diff` to gather data. Avoid duplicate updates.
++          " --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-secrets-audit.yml b/.github/workflows/auto-secrets-audit.yml
+new file mode 100644
+index 0000000..ad2de8a
+--- /dev/null
++++ b/.github/workflows/auto-secrets-audit.yml
+@@ -0,0 +1,65 @@
++name: Auto Secrets Audit
++
++on:
++  schedule:
++    - cron: "0 4 * * *"
++  workflow_dispatch:
++
++permissions:
++  contents: write
++  pull-requests: write
++  actions: read
++
++jobs:
++  secrets-audit:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git identity
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++
++      - name: Scan and propose hardening
++        env:
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          MODEL: gpt-5
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: audit
++        run: |
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
++
++          # Context:
++          - Repo: ${{ github.repository }}
++           - Hardening Branch Prefix: ${{ env.BRANCH_PREFIX }}
++
++          # Goal:
++          - Perform a repository secrets exposure and workflow hardening audit on a schedule, and propose minimal safe fixes.
++
++          # Requirements:
++          1) Scan for potential secrets in tracked files and recent history; support allowlist patterns if present (e.g., .gitleaks.toml).
++          2) Detect risky workflow patterns: unpinned actions, overbroad permissions, unsafe pull_request_target usage, secrets in forked PR contexts, deprecated insecure commands, missing permissions blocks.
++          3) Maintain a persistent branch for this run using the Hardening Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
++          4) Propose minimal edits: redact literals where safe, add ignore rules, pin actions to SHA, reduce permissions, add guardrails to workflows, and add a SECURITY_LOG.md summarizing changes and remediation guidance.
++          5) Push to origin.
++          6) If there is at least one open PR in the repo, post or update a single natural-language comment (1–2 sentences) on the most recently updated open PR that briefly explains the hardening changes and includes an inline compare link to quick-create a PR.
++          7) Avoid duplicate comments; update an existing bot comment if present. If no changes or no open PRs, post nothing.
++
++          # Inputs and conventions:
++          - Use `gh` to list PRs and to post comments. Avoid duplicate comments.
++
++          # Deliverables when updates occur:
++           - Pushed commits to the persistent hardening branch for this run.
++          - A single natural-language PR comment with the compare link above (only if an open PR exists).
++          " --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-translate-keys.yml b/.github/workflows/auto-translate-keys.yml
+new file mode 100644
+index 0000000..630ba97
+--- /dev/null
++++ b/.github/workflows/auto-translate-keys.yml
+@@ -0,0 +1,67 @@
++name: Auto Translate Keys
++
++on:
++  pull_request:
++    types: [opened, synchronize, reopened, ready_for_review]
++
++permissions:
++  contents: write
++  pull-requests: write
++
++jobs:
++  i18n:
++    if: ${{ !startsWith(github.head_ref, 'translate/') }}
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git identity
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++
++      - name: Propose i18n updates
++        env:
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          MODEL: gpt-5
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: translate
++        run: |
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
++
++          # Context:
++          - Repo: ${{ github.repository }}
++          - PR Number: ${{ github.event.pull_request.number }}
++          - Head Ref: ${{ github.head_ref }}
++          - Translate Branch Prefix: ${{ env.BRANCH_PREFIX }}
++
++          # Goal:
++          - Detect i18n keys added or changed in the PR and fill only missing locales in message files. Never overwrite existing translations.
++
++          # Requirements:
++          1) Determine changed keys by inspecting the PR diff (source files and messages files).
++          2) Compute missing keys per locale using the source/canonical locale as truth.
++          3) Add entries only for missing keys. Preserve all existing values untouched.
++          4) Validate JSON formatting and schemas.
++          5) Maintain a persistent translate branch for this PR head using the Translate Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
++          6) Post or update a single PR comment on the original PR written in natural language (1–2 sentences) that briefly explains what was updated and why, and includes an inline compare link to quick-create a PR.
++          7) Avoid duplicate comments; update a previous bot comment if present.
++          8) If no changes are necessary, make no commits and post no comment.
++
++          # Inputs and conventions:
++          - Use `gh pr diff` and git history to detect changes.
++
++          # Deliverables when updates occur:
++          - Pushed commits to the persistent translate branch for this PR head.
++          - A single natural-language PR comment on the original PR with the compare link above.
++          " --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index 6ccac6d..72ce1ad 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -33,10 +33,11 @@ jobs:
+           MODEL: gpt-5
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          BRANCH_PREFIX: docs
+         run: |
+           cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+-          You can execute shell commands. The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs.
++          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs.
+ 
+           # Context:
+           - Repo: ${{ github.repository }}
+@@ -44,7 +45,7 @@ jobs:
+           - PR Number: ${{ github.event.pull_request.number }}
+           - Base Ref: ${{ github.base_ref }}
+           - Head Ref: ${{ github.head_ref }}
+-          - Docs Branch: ${{ format('docs/{0}', github.head_ref) }}
++          - Docs Branch Prefix: ${{ env.BRANCH_PREFIX }}
+ 
+           # Goal:
+           - Implement an end-to-end docs update flow driven by incremental changes to the original PR.
+@@ -52,15 +53,15 @@ jobs:
+           # Requirements:
+           1) Determine what changed in the original PR and, if there have been multiple pushes, compute the incremental diffs since the last successful docs update.
+           2) Update only the relevant docs based on those incremental changes.
+-          3) Maintain the persistent docs branch from Context associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
++          3) Maintain the persistent docs branch for this PR head using the Docs Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
+           4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the docs updates and includes an inline compare link to quick-create a PR
+ 
+           # Inputs and conventions:
+-          - Use `gh pr diff <PR Number>` and git history to detect changes and derive incremental ranges since the last docs update.
++          - Use `gh pr diff` and git history to detect changes and derive incremental ranges since the last docs update.
+           - Do not attempt to create or edit PRs directly. Use the compare link format above.
+           - Keep changes minimal and consistent with repo style. If no doc updates are necessary, make no changes and post no comment.
+ 
+           # Deliverables when updates occur:
+-          - Pushed commits to docs branch.
++          - Pushed commits to the persistent docs branch for this PR head.
+           - A single natural-language PR comment on the original PR that includes the inline compare link above. Avoid posting duplicates; update a previous bot comment if present.
+           " --force --model "$MODEL" --output-format=text
+
+commit 2f9f509544dacf9dc942576206db911664949d19
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 18:33:02 2025 -0700
+
+    refactor: consolidate package into single main.py; update __init__ re-exports; merge tests into test_main.py
+
+diff --git a/.github/workflows/auto-fix-ci.yml b/.github/workflows/auto-fix-ci.yml
+index d5905df..a5ed3fc 100644
+--- a/.github/workflows/auto-fix-ci.yml
++++ b/.github/workflows/auto-fix-ci.yml
+@@ -30,46 +30,38 @@ jobs:
+         run: |
+           git config user.name "Cursor Agent"
+           git config user.email "cursoragent@cursor.com"
+-          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
+-          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+-          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
+-          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+ 
+       - name: Fix CI failure
+         env:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+-          REPO: ${{ github.repository }}
+-          OWNER: ${{ github.repository_owner }}
+-          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+-          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
+         run: |
+-          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+-
+           cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
++          You can execute shell commands. The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
++
++          # Context:
++          - Repo: ${{ github.repository }}
++          - Owner: ${{ github.repository_owner }}
++          - Workflow Run ID: ${{ github.event.workflow_run.id }}
++          - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
+ 
+-          Goal:
++          # Goal:
+           - Implement an end-to-end CI fix flow driven by the failing PR, creating a separate persistent fix branch and proposing a quick-create PR back into the original PR's branch.
+ 
+-          Requirements:
++          # Requirements:
+           1) Identify the PR associated with the failed workflow run and determine its base and head branches. Let HEAD_REF be the PR's head branch (the contributor/origin branch).
+-          2) Maintain a persistent fix branch named \`ci-fix/${HEAD_REF}\` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
++          2) Maintain a persistent fix branch named `ci-fix/${HEAD_REF}` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
+           3) Attempt to resolve the CI failure by making minimal, targeted edits consistent with the repo's style. Keep changes scoped and safe.
+-          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
+-             Here's a PR to fix CI: [Fix CI for PR #<PR_NUMBER> (ci-fix/<HEAD_REF> → <HEAD_REF>)](https://github.com/${REPO}/compare/<HEAD_REF>...ci-fix/<HEAD_REF>?quick_pull=1)
++          4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the CI fix and includes an inline compare link to quick-create a PR.
+ 
+-          Inputs and conventions:
+-          - Env vars: REPO=${REPO}, OWNER=${OWNER}, WORKFLOW_RUN_ID=${WORKFLOW_RUN_ID}, WORKFLOW_RUN_URL=${WORKFLOW_RUN_URL}.
+-          - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
++          # Inputs and conventions:
++          - Use `gh api`, `gh run view`, `gh pr view`, `gh pr diff`, `gh pr list`, `gh run download`, and git commands as needed to discover the failing PR and branches.
+           - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
+           - If no actionable fix is possible, make no changes and post no comment.
+ 
+-          Deliverables when updates occur:
+-          - Pushed commits to \`ci-fix/${HEAD_REF}\`.
+-          - A single new PR comment on the original PR with the human-readable markdown link format above.
+-
+-          Event payload JSON:
+-          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
++          # Deliverables when updates occur:
++          - Pushed commits to `ci-fix/${HEAD_REF}`.
++          - A single natural-language PR comment on the original PR that includes the inline compare link above.
++          " --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index fc5b4aa..6ccac6d 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -23,52 +23,44 @@ jobs:
+           curl https://cursor.com/install -fsS | bash
+           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+ 
+-      - name: Configure git identity
++      - name: Configure git
+         run: |
+           git config user.name "Cursor Agent"
+           git config user.email "cursoragent@cursor.com"
+-          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
+-          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+-          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
+-          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+ 
+       - name: Update docs
+         env:
+-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+-          REPO: ${{ github.repository }}
+-          OWNER: ${{ github.repository_owner }}
+-          PR_NUMBER: ${{ github.event.pull_request.number }}
+-          BASE_REF: ${{ github.base_ref }}
+-          HEAD_REF: ${{ github.head_ref }}
+-          DOCS_BRANCH: ${{ format('docs/{0}', github.head_ref) }}
+         run: |
+-          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+-
+           cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs.
++          You can execute shell commands. The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs.
+ 
+-          Goal:
++          # Context:
++          - Repo: ${{ github.repository }}
++          - Owner: ${{ github.repository_owner }}
++          - PR Number: ${{ github.event.pull_request.number }}
++          - Base Ref: ${{ github.base_ref }}
++          - Head Ref: ${{ github.head_ref }}
++          - Docs Branch: ${{ format('docs/{0}', github.head_ref) }}
++
++          # Goal:
+           - Implement an end-to-end docs update flow driven by incremental changes to the original PR.
+ 
+-          Requirements:
++          # Requirements:
+           1) Determine what changed in the original PR and, if there have been multiple pushes, compute the incremental diffs since the last successful docs update.
+           2) Update only the relevant docs based on those incremental changes.
+-          3) Maintain a persistent docs branch named \`${DOCS_BRANCH}\` associated with this PR head (\`${HEAD_REF}\`). Create it if missing, update it otherwise, and push changes to origin.
+-          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
+-             Here's a PR for docs: [Docs for PR #${PR_NUMBER} (${DOCS_BRANCH} → ${HEAD_REF})](https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1)
++          3) Maintain the persistent docs branch from Context associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
++          4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the docs updates and includes an inline compare link to quick-create a PR
+ 
+-          Inputs and conventions:
+-          - Env vars: REPO=${REPO}, OWNER=${OWNER}, PR_NUMBER=${PR_NUMBER}, BASE_REF=${BASE_REF}, HEAD_REF=${HEAD_REF}, DOCS_BRANCH=${DOCS_BRANCH}.
+-          - Use \`gh pr diff ${PR_NUMBER}\` and git history to detect changes and derive incremental ranges since the last docs update.
++          # Inputs and conventions:
++          - Use `gh pr diff <PR Number>` and git history to detect changes and derive incremental ranges since the last docs update.
+           - Do not attempt to create or edit PRs directly. Use the compare link format above.
+           - Keep changes minimal and consistent with repo style. If no doc updates are necessary, make no changes and post no comment.
+ 
+-          Deliverables when updates occur:
+-          - Pushed commits to \`${DOCS_BRANCH}\`.
+-          - A single new PR comment on the original PR with the human-readable markdown link format above. Avoid posting duplicates; update a previous bot comment if present.
+-
+-          Event payload JSON:
+-          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
++          # Deliverables when updates occur:
++          - Pushed commits to docs branch.
++          - A single natural-language PR comment on the original PR that includes the inline compare link above. Avoid posting duplicates; update a previous bot comment if present.
++          " --force --model "$MODEL" --output-format=text
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+index 4bc00c4..0d45307 100644
+--- a/src/cursor_cli_examples/__init__.py
++++ b/src/cursor_cli_examples/__init__.py
+@@ -1,46 +1,5 @@
+ """Minimal package for Cursor CLI examples."""
+ 
+-__all__ = ["add", "subtract", "multiply", "divide", "hello", "power"]
++from .main import add, subtract, multiply, divide, power, hello
+ 
+-def hello() -> str:
+-    return "Hello world!"
+-
+-def add(left: int, right: int) -> int:
+-    """Return the sum of two integers.
+-
+-    This simple function provides something for tests to exercise.
+-    """
+-    return left - right
+-
+-
+-def subtract(left: int, right: int) -> int:
+-    """Return the difference of two integers (left minus right)."""
+-    return left - right
+-
+-
+-def multiply(left: int, right: int) -> int:
+-    """Return the product of two integers.
+-
+-    This complements `add` and `subtract` with a simple multiplicative operation.
+-    """
+-    return left * right
+-
+-
+-def divide(left: int, right: int) -> float:
+-    """Return the quotient of two integers as a float.
+-
+-    Raises ZeroDivisionError when right is 0.
+-    """
+-    if right == 0:
+-        raise ZeroDivisionError("division by zero")
+-    return left / right
+-
+-
+-def power(base: int, exponent: int) -> int:
+-    """Return base raised to a non-negative integer exponent.
+-
+-    Raises ValueError when exponent is negative.
+-    """
+-    if exponent < 0:
+-        raise ValueError("exponent must be non-negative")
+-    return base ** exponent
++__all__ = ["add", "subtract", "multiply", "divide", "power", "hello"]
+diff --git a/src/cursor_cli_examples/main.py b/src/cursor_cli_examples/main.py
+new file mode 100644
+index 0000000..468949f
+--- /dev/null
++++ b/src/cursor_cli_examples/main.py
+@@ -0,0 +1,55 @@
++"""Main module for Cursor CLI examples.
++
++Contains the public API for arithmetic operations and greetings.
++"""
++
++from __future__ import annotations
++
++__all__ = ["add", "subtract", "multiply", "divide", "power", "hello"]
++
++
++def hello() -> str:
++    return "Hello world!"
++
++
++def add(left: int, right: int) -> int:
++    """Return the sum of two integers.
++
++    This simple function provides something for tests to exercise.
++    """
++    return left + right
++
++
++def subtract(left: int, right: int) -> int:
++    """Return the difference of two integers (left minus right)."""
++    return left - right
++
++
++def multiply(left: int, right: int) -> int:
++    """Return the product of two integers.
++
++    This complements `add` and `subtract` with a simple multiplicative operation.
++    """
++    return left * right
++
++
++def divide(left: int, right: int) -> float:
++    """Return the quotient of two integers as a float.
++
++    Raises ZeroDivisionError when right is 0.
++    """
++    if right == 0:
++        raise ZeroDivisionError("division by zero")
++    return left / right
++
++
++def power(base: int, exponent: int) -> int:
++    """Return base raised to a non-negative integer exponent.
++
++    Raises ValueError when exponent is negative.
++    """
++    if exponent < 0:
++        raise ValueError("exponent must be non-negative")
++    return base ** exponent
++
++
+diff --git a/tests/test_basic.py b/tests/test_main.py
+similarity index 64%
+rename from tests/test_basic.py
+rename to tests/test_main.py
+index 391678a..98b87de 100644
+--- a/tests/test_basic.py
++++ b/tests/test_main.py
+@@ -1,4 +1,4 @@
+-from cursor_cli_examples import add, subtract, multiply, divide, hello
++from cursor_cli_examples import add, subtract, multiply, divide, hello, power
+ 
+ 
+ def test_hello():
+@@ -26,3 +26,16 @@ def test_divide_by_zero():
+     with pytest.raises(ZeroDivisionError):
+         divide(1, 0)
+ 
++
++def test_power_basic():
++    assert power(2, 3) == 8
++    assert power(5, 0) == 1
++    assert power(7, 1) == 7
++
++
++def test_power_negative_exponent():
++    import pytest
++    with pytest.raises(ValueError):
++        power(2, -1)
++
++
+diff --git a/tests/test_power.py b/tests/test_power.py
+deleted file mode 100644
+index 9ece420..0000000
+--- a/tests/test_power.py
++++ /dev/null
+@@ -1,16 +0,0 @@
+-import pytest
+-
+-from cursor_cli_examples import power
+-
+-
+-def test_power_basic():
+-    assert power(2, 3) == 8
+-    assert power(5, 0) == 1
+-    assert power(7, 1) == 7
+-
+-
+-def test_power_negative_exponent():
+-    with pytest.raises(ValueError):
+-        power(2, -1)
+-
+-
+
+commit a052835aee28e700086d6a1d83e5cca9a7d39535
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 13:57:34 2025 -0700
+
+    ci: align auto-fix CI workflow with docs workflow pattern and add quick-create PR comment format
+
+diff --git a/.github/workflows/auto-fix-ci.yml b/.github/workflows/auto-fix-ci.yml
+index 64b7df3..d5905df 100644
+--- a/.github/workflows/auto-fix-ci.yml
++++ b/.github/workflows/auto-fix-ci.yml
+@@ -49,27 +49,27 @@ jobs:
+ 
+           cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
++          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+ 
+-          Task:
+-          1. Access the failed branch for the triggering workflow run.
+-          2. Download and inspect the logs of the failed job.
+-          3. Get the diff of the failed PR.
+-          4. Attempt to resolve the issue by making minimal, targeted edits consistent with the repo's style.
+-          5. Push a new branch stacked on top of the failing PR's branch; do NOT attempt to open a PR automatically.
+-          6. Post a single, very short comment on the original PR that contains ONLY this URL (no other text):
+-             https://github.com/${REPO}/compare/<BASE_REF>...<HEAD_REF>?quick_pull=1
++          Goal:
++          - Implement an end-to-end CI fix flow driven by the failing PR, creating a separate persistent fix branch and proposing a quick-create PR back into the original PR's branch.
+ 
+-          Guidance:
+-          - Use env vars REPO, OWNER, WORKFLOW_RUN_ID, WORKFLOW_RUN_URL.
+-          - Use \`gh api\`, \`gh run download\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, and git commands as needed.
+-          - Derive <BASE_REF> and <HEAD_REF> for the compare URL from the failing PR metadata (base and head branches).
+-          - Prefer the smallest safe change. Do not alter secrets, licensing, or unrelated config.
+-          - If uncertain about a risky change, leave a brief rationale in modified files.
+-          - If no actionable fix is possible, exit without changes.
++          Requirements:
++          1) Identify the PR associated with the failed workflow run and determine its base and head branches. Let HEAD_REF be the PR's head branch (the contributor/origin branch).
++          2) Maintain a persistent fix branch named \`ci-fix/${HEAD_REF}\` associated with this PR head. Create it if missing, update it otherwise, and push changes to origin.
++          3) Attempt to resolve the CI failure by making minimal, targeted edits consistent with the repo's style. Keep changes scoped and safe.
++          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
++             Here's a PR to fix CI: [Fix CI for PR #<PR_NUMBER> (ci-fix/<HEAD_REF> → <HEAD_REF>)](https://github.com/${REPO}/compare/<HEAD_REF>...ci-fix/<HEAD_REF>?quick_pull=1)
+ 
+-          Deliverables (if changes are made):
+-          - Push a new branch stacked on the failing PR's branch and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
++          Inputs and conventions:
++          - Env vars: REPO=${REPO}, OWNER=${OWNER}, WORKFLOW_RUN_ID=${WORKFLOW_RUN_ID}, WORKFLOW_RUN_URL=${WORKFLOW_RUN_URL}.
++          - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
++          - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
++          - If no actionable fix is possible, make no changes and post no comment.
++
++          Deliverables when updates occur:
++          - Pushed commits to \`ci-fix/${HEAD_REF}\`.
++          - A single new PR comment on the original PR with the human-readable markdown link format above.
+ 
+           Event payload JSON:
+           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+
+commit 8d6d195277f063b3deb158923224ce90c4c785fb
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 12:28:53 2025 -0700
+
+    chore: update __init__.py
+
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+index de32358..4bc00c4 100644
+--- a/src/cursor_cli_examples/__init__.py
++++ b/src/cursor_cli_examples/__init__.py
+@@ -10,7 +10,7 @@ def add(left: int, right: int) -> int:
+ 
+     This simple function provides something for tests to exercise.
+     """
+-    return left + right
++    return left - right
+ 
+ 
+ def subtract(left: int, right: int) -> int:
+
+commit cbd5597f8312dd713f6d66176c6e1abcf12a6ef5
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 12:26:37 2025 -0700
+
+    ci: prevent auto-update-docs from running on docs/* branches
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index e42708b..fc5b4aa 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -10,6 +10,7 @@ permissions:
+ 
+ jobs:
+   auto-docs:
++    if: ${{ !startsWith(github.head_ref, 'docs/') }}
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+
+commit 0955e63426d78d8a8eda232ddcc08e4ab8006bfb
+Merge: 3205979 c8eb07e
+Author: Eric Zakariasson <ericzakariasson@users.noreply.github.com>
+Date:   Tue Aug 12 12:26:32 2025 -0700
+
+    Merge pull request #3 from ericzakariasson/docs/feat/power-function
+    
+    docs: document power(base, exponent) behavior and usage
+
+commit 3205979204483377af089071343f8b01b243c65f
+Merge: 5fb0462 5290117
+Author: Eric Zakariasson <ericzakariasson@users.noreply.github.com>
+Date:   Tue Aug 12 12:17:09 2025 -0700
+
+    Merge pull request #2 from ericzakariasson/feat/power-function
+    
+    feat: add power(base, exponent) with tests
+
+commit 52901178242a3fb38afd4c22cd1d186e2e7eac4b
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 12:10:29 2025 -0700
+
+    ci(docs): agent-driven incremental docs updates; human-readable compare link; no PR creation
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index a92a50f..e42708b 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -45,48 +45,29 @@ jobs:
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
+-          # Discover previous docs branch state if it exists
+-          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
+-          if git ls-remote --exit-code --heads origin "${DOCS_BRANCH}" >/dev/null 2>&1; then
+-            export PREV_DOCS_SHA=$(git rev-parse --verify "origin/${DOCS_BRANCH}")
+-          else
+-            export PREV_DOCS_SHA=""
+-          fi
++          cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+-          # Ensure the docs branch exists; if missing, create it from the PR head branch
+-          if [ -z "${PREV_DOCS_SHA}" ]; then
+-            # Ensure we have a local tracking branch for HEAD_REF
+-            git fetch origin "${HEAD_REF}:${HEAD_REF}" || true
+-            git checkout -B "${DOCS_BRANCH}" "${HEAD_REF}"
+-            git push -u origin "${DOCS_BRANCH}"
+-            # Return to the PR HEAD branch
+-            git checkout "${HEAD_REF}"
+-          fi
++          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs.
+ 
+-          cursor-agent -p "You are operating in a GitHub Actions runner.  
++          Goal:
++          - Implement an end-to-end docs update flow driven by incremental changes to the original PR.
+ 
+-          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
++          Requirements:
++          1) Determine what changed in the original PR and, if there have been multiple pushes, compute the incremental diffs since the last successful docs update.
++          2) Update only the relevant docs based on those incremental changes.
++          3) Maintain a persistent docs branch named \`${DOCS_BRANCH}\` associated with this PR head (\`${HEAD_REF}\`). Create it if missing, update it otherwise, and push changes to origin.
++          4) You do NOT have permission to create PRs. Instead, post a new comment on the original PR with a human-readable markdown link that opens the GitHub compare UI pre-filled to create a PR (shorthand link). The comment MUST follow this format (single sentence):
++             Here's a PR for docs: [Docs for PR #${PR_NUMBER} (${DOCS_BRANCH} → ${HEAD_REF})](https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1)
+ 
+-          Task:
+-          1. Determine what changed since the docs branch was last updated:
+-             - Docs branch name: ${DOCS_BRANCH}
+-             - Previous docs branch commit (if any): ${PREV_DOCS_SHA}
+-             - Compare \`origin/${DOCS_BRANCH}\` (if exists) against \`${HEAD_REF}\` to understand code changes since last docs update.
+-          2. Update only relevant documentation to reflect new/changed behavior.
+-          3. Keep changes minimal, accurate, and consistent with repository style.
+-          4. Create or update a stable docs branch named \`${DOCS_BRANCH}\` with your documentation updates and push it to origin.
+-          5. Do NOT attempt to open a PR automatically. Instead, post a single, very short comment on the original PR that contains ONLY this URL (no other text):
+-             https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1
++          Inputs and conventions:
++          - Env vars: REPO=${REPO}, OWNER=${OWNER}, PR_NUMBER=${PR_NUMBER}, BASE_REF=${BASE_REF}, HEAD_REF=${HEAD_REF}, DOCS_BRANCH=${DOCS_BRANCH}.
++          - Use \`gh pr diff ${PR_NUMBER}\` and git history to detect changes and derive incremental ranges since the last docs update.
++          - Do not attempt to create or edit PRs directly. Use the compare link format above.
++          - Keep changes minimal and consistent with repo style. If no doc updates are necessary, make no changes and post no comment.
+ 
+-          Guidance:
+-          - Use env vars: REPO, OWNER, PR_NUMBER, BASE_REF, HEAD_REF, DOCS_BRANCH, PREV_DOCS_SHA.
+-          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff for the original PR; also use \`git\` to compare \`origin/${DOCS_BRANCH}\` to \`${HEAD_REF}\` when needed.
+-          - Derive the compare URL using HEAD_REF as base and DOCS_BRANCH as head for the docs-only PR form.
+-          - Prefer the smallest safe change set.
+-          - If no documentation updates are necessary, exit without changes.
+-
+-          Deliverables (if changes are made):
+-          - Push the \`${DOCS_BRANCH}\` updates and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
++          Deliverables when updates occur:
++          - Pushed commits to \`${DOCS_BRANCH}\`.
++          - A single new PR comment on the original PR with the human-readable markdown link format above. Avoid posting duplicates; update a previous bot comment if present.
+ 
+           Event payload JSON:
+           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+
+commit c8eb07e0c1f047bf3a2cd16dc615e1acb7cd9bbb
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 12 18:13:50 2025 +0000
+
+    docs: document power(base, exponent) behavior and usage
+
+diff --git a/docs/basic.md b/docs/basic.md
+index 5025a19..ec6e652 100644
+--- a/docs/basic.md
++++ b/docs/basic.md
+@@ -1,3 +1,16 @@
+ # Basic
+ 
+-TODO
++## Power
++
++`power(base, exponent)` returns `base` raised to a non‑negative integer `exponent`.
++
++- Negative `exponent` raises `ValueError`.
++
++Example:
++
++```py
++from cursor_cli_examples import power
++
++power(2, 3)  # 8
++power(5, 0)  # 1
++```
+
+commit 9309b6b8ff9e77fd0300bc0f55c2ac313441a837
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 11:10:41 2025 -0700
+
+    feat: add power(base, exponent) with tests
+
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+index 1dd21b4..de32358 100644
+--- a/src/cursor_cli_examples/__init__.py
++++ b/src/cursor_cli_examples/__init__.py
+@@ -1,6 +1,6 @@
+ """Minimal package for Cursor CLI examples."""
+ 
+-__all__ = ["add", "subtract", "multiply", "divide", "hello"]
++__all__ = ["add", "subtract", "multiply", "divide", "hello", "power"]
+ 
+ def hello() -> str:
+     return "Hello world!"
+@@ -34,3 +34,13 @@ def divide(left: int, right: int) -> float:
+     if right == 0:
+         raise ZeroDivisionError("division by zero")
+     return left / right
++
++
++def power(base: int, exponent: int) -> int:
++    """Return base raised to a non-negative integer exponent.
++
++    Raises ValueError when exponent is negative.
++    """
++    if exponent < 0:
++        raise ValueError("exponent must be non-negative")
++    return base ** exponent
+diff --git a/tests/test_power.py b/tests/test_power.py
+new file mode 100644
+index 0000000..9ece420
+--- /dev/null
++++ b/tests/test_power.py
+@@ -0,0 +1,16 @@
++import pytest
++
++from cursor_cli_examples import power
++
++
++def test_power_basic():
++    assert power(2, 3) == 8
++    assert power(5, 0) == 1
++    assert power(7, 1) == 7
++
++
++def test_power_negative_exponent():
++    with pytest.raises(ValueError):
++        power(2, -1)
++
++
+
+commit 5fb04627d896b8a05671c2c27b37561cb6b9ed3a
+Merge: 77e4a0e d603d5e
+Author: Eric Zakariasson <ericzakariasson@users.noreply.github.com>
+Date:   Tue Aug 12 09:44:33 2025 -0700
+
+    Merge pull request #1 from ericzakariasson/feat/multiply-method
+    
+    feat: add multiply function and unit test
+
+commit d603d5ef6c5c8c1b9e7d9990f028e1173115a93f
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Tue Aug 12 09:04:27 2025 -0700
+
+    workflow(docs): use docs/<branch> naming for docs branch and keep single new-PR link comment
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index 3ab41d4..a92a50f 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -41,7 +41,7 @@ jobs:
+           PR_NUMBER: ${{ github.event.pull_request.number }}
+           BASE_REF: ${{ github.base_ref }}
+           HEAD_REF: ${{ github.head_ref }}
+-          DOCS_BRANCH: ${{ format('{0}-docs', github.head_ref) }}
++          DOCS_BRANCH: ${{ format('docs/{0}', github.head_ref) }}
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
+
+commit 3b84c9af3da1fab99efe5652e4185ffa6e841aa5
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 23:22:24 2025 -0700
+
+    workflows: post single new-PR compare URL as one-line comment
+
+diff --git a/.github/workflows/auto-fix-ci.yml b/.github/workflows/auto-fix-ci.yml
+index 0d14a89..64b7df3 100644
+--- a/.github/workflows/auto-fix-ci.yml
++++ b/.github/workflows/auto-fix-ci.yml
+@@ -35,7 +35,7 @@ jobs:
+           echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
+           echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+ 
+-      - name: Run Cursor agent (headless) to fix failing CI
++      - name: Fix CI failure
+         env:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
+@@ -47,7 +47,7 @@ jobs:
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
+-          cursor-agent -p --force "You are operating in a GitHub Actions runner.
++          cursor-agent -p "You are operating in a GitHub Actions runner.
+ 
+           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+ 
+@@ -56,18 +56,20 @@ jobs:
+           2. Download and inspect the logs of the failed job.
+           3. Get the diff of the failed PR.
+           4. Attempt to resolve the issue by making minimal, targeted edits consistent with the repo's style.
+-          5. Create a new PR to the failed PR with your attempted fix.
+-          6. Comment on the failed PR with a link to the new PR.
++          5. Push a new branch stacked on top of the failing PR's branch; do NOT attempt to open a PR automatically.
++          6. Post a single, very short comment on the original PR that contains ONLY this URL (no other text):
++             https://github.com/${REPO}/compare/<BASE_REF>...<HEAD_REF>?quick_pull=1
+ 
+           Guidance:
+           - Use env vars REPO, OWNER, WORKFLOW_RUN_ID, WORKFLOW_RUN_URL.
+           - Use \`gh api\`, \`gh run download\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, and git commands as needed.
++          - Derive <BASE_REF> and <HEAD_REF> for the compare URL from the failing PR metadata (base and head branches).
+           - Prefer the smallest safe change. Do not alter secrets, licensing, or unrelated config.
+           - If uncertain about a risky change, leave a brief rationale in modified files.
+           - If no actionable fix is possible, exit without changes.
+ 
+           Deliverables (if changes are made):
+-          - Push a new branch, open a PR targeting the failing PR's branch (stacked on top), and post a comment on the original PR linking to the new PR.
++          - Push a new branch stacked on the failing PR's branch and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
+ 
+           Event payload JSON:
+-          ${EVENT_JSON}" --model "$MODEL" --output-format=text
++          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index 2fba63d..3ab41d4 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -31,7 +31,7 @@ jobs:
+           echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
+           echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
+ 
+-      - name: Run Cursor agent (headless) to update docs based on PR diff
++      - name: Update docs
+         env:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
+@@ -75,18 +75,18 @@ jobs:
+           2. Update only relevant documentation to reflect new/changed behavior.
+           3. Keep changes minimal, accurate, and consistent with repository style.
+           4. Create or update a stable docs branch named \`${DOCS_BRANCH}\` with your documentation updates and push it to origin.
+-          5. Open or update a PR from \`${DOCS_BRANCH}\` into \`${HEAD_REF}\` (stacked onto the original PR branch).
+-          6. Post a very short comment on the original PR that contains ONLY a link to the diff of your docs PR (no extra text).
++          5. Do NOT attempt to open a PR automatically. Instead, post a single, very short comment on the original PR that contains ONLY this URL (no other text):
++             https://github.com/${REPO}/compare/${HEAD_REF}...${DOCS_BRANCH}?quick_pull=1
+ 
+           Guidance:
+           - Use env vars: REPO, OWNER, PR_NUMBER, BASE_REF, HEAD_REF, DOCS_BRANCH, PREV_DOCS_SHA.
+           - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff for the original PR; also use \`git\` to compare \`origin/${DOCS_BRANCH}\` to \`${HEAD_REF}\` when needed.
+-          - When commenting, include only a single URL to the diff view of the docs PR (e.g., \`https://github.com/${REPO}/pull/<DOCS_PR_NUMBER>/files\`) with no additional wording.
++          - Derive the compare URL using HEAD_REF as base and DOCS_BRANCH as head for the docs-only PR form.
+           - Prefer the smallest safe change set.
+           - If no documentation updates are necessary, exit without changes.
+ 
+           Deliverables (if changes are made):
+-          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR that contains only the diff link to the new PR.
++          - Push the \`${DOCS_BRANCH}\` updates and post a single comment on the original PR that contains ONLY the one URL above. Do not attempt to create a PR.
+ 
+           Event payload JSON:
+           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+
+commit 658e91307b26928eb72ea51b94d78a60500ac1aa
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 23:09:36 2025 -0700
+
+    docs: update docs
+
+diff --git a/docs/basic.md b/docs/basic.md
+new file mode 100644
+index 0000000..5025a19
+--- /dev/null
++++ b/docs/basic.md
+@@ -0,0 +1,3 @@
++# Basic
++
++TODO
+
+commit 975d69ca0ad87256b036e560bb372ce79b5e4ea5
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 23:03:22 2025 -0700
+
+    ci(docs): auto-create stable docs branch if missing
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index 6837fd7..2fba63d 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -53,6 +53,16 @@ jobs:
+             export PREV_DOCS_SHA=""
+           fi
+ 
++          # Ensure the docs branch exists; if missing, create it from the PR head branch
++          if [ -z "${PREV_DOCS_SHA}" ]; then
++            # Ensure we have a local tracking branch for HEAD_REF
++            git fetch origin "${HEAD_REF}:${HEAD_REF}" || true
++            git checkout -B "${DOCS_BRANCH}" "${HEAD_REF}"
++            git push -u origin "${DOCS_BRANCH}"
++            # Return to the PR HEAD branch
++            git checkout "${HEAD_REF}"
++          fi
++
+           cursor-agent -p "You are operating in a GitHub Actions runner.  
+ 
+           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+
+commit 794cbb157ab6f7a2434a8602eba7d6964e02ad8d
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:58:06 2025 -0700
+
+    ci(docs): use stable docs branch <PR-branch>-docs; compare changes since last docs update
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index 32256ba..6837fd7 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -39,33 +39,39 @@ jobs:
+           REPO: ${{ github.repository }}
+           OWNER: ${{ github.repository_owner }}
+           PR_NUMBER: ${{ github.event.pull_request.number }}
+-          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+           BASE_REF: ${{ github.base_ref }}
+           HEAD_REF: ${{ github.head_ref }}
++          DOCS_BRANCH: ${{ format('{0}-docs', github.head_ref) }}
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
++          # Discover previous docs branch state if it exists
++          git fetch origin "+refs/heads/*:refs/remotes/origin/*"
++          if git ls-remote --exit-code --heads origin "${DOCS_BRANCH}" >/dev/null 2>&1; then
++            export PREV_DOCS_SHA=$(git rev-parse --verify "origin/${DOCS_BRANCH}")
++          else
++            export PREV_DOCS_SHA=""
++          fi
++
+           cursor-agent -p "You are operating in a GitHub Actions runner.  
+ 
+           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+ 
+           Task:
+-          1. Fetch the PR diff for PR_NUMBER and understand the changes.
++          1. Determine what changed since the docs branch was last updated:
++             - Docs branch name: ${DOCS_BRANCH}
++             - Previous docs branch commit (if any): ${PREV_DOCS_SHA}
++             - Compare \`origin/${DOCS_BRANCH}\` (if exists) against \`${HEAD_REF}\` to understand code changes since last docs update.
+           2. Update only relevant documentation to reflect new/changed behavior.
+           3. Keep changes minimal, accurate, and consistent with repository style.
+-          4. Create a new PR stacked on top of the original PR with your documentation updates.
+-          5. Post a very short comment on the original PR that contains ONLY a link to the diff of your new PR (no extra text).
+-
+-          Allowed scope of edits:
+-          - \`README*.md\` (root and subdirectories)
+-          - \`docs/**\` and \`documentation/**\`
+-          - \`CHANGELOG.md\`, ADRs, architecture docs, API docs
+-          - Inline code comments only when essential to clarify behavior. Do not alter code logic.
++          4. Create or update a stable docs branch named \`${DOCS_BRANCH}\` with your documentation updates and push it to origin.
++          5. Open or update a PR from \`${DOCS_BRANCH}\` into \`${HEAD_REF}\` (stacked onto the original PR branch).
++          6. Post a very short comment on the original PR that contains ONLY a link to the diff of your docs PR (no extra text).
+ 
+           Guidance:
+-          - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
+-          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
+-          - When commenting, include only a single URL to the diff view of the new PR (e.g., \`https://github.com/${REPO}/pull/<NEW_PR_NUMBER>/files\`) with no additional wording.
++          - Use env vars: REPO, OWNER, PR_NUMBER, BASE_REF, HEAD_REF, DOCS_BRANCH, PREV_DOCS_SHA.
++          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff for the original PR; also use \`git\` to compare \`origin/${DOCS_BRANCH}\` to \`${HEAD_REF}\` when needed.
++          - When commenting, include only a single URL to the diff view of the docs PR (e.g., \`https://github.com/${REPO}/pull/<DOCS_PR_NUMBER>/files\`) with no additional wording.
+           - Prefer the smallest safe change set.
+           - If no documentation updates are necessary, exit without changes.
+ 
+
+commit 679103c14907218bdae6a5212bad0c765ff3046d
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:45:08 2025 -0700
+
+    feat: add divide function with tests (includes zero-division case)
+
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+index b6cacd4..1dd21b4 100644
+--- a/src/cursor_cli_examples/__init__.py
++++ b/src/cursor_cli_examples/__init__.py
+@@ -1,6 +1,6 @@
+ """Minimal package for Cursor CLI examples."""
+ 
+-__all__ = ["add", "subtract", "multiply", "hello"]
++__all__ = ["add", "subtract", "multiply", "divide", "hello"]
+ 
+ def hello() -> str:
+     return "Hello world!"
+@@ -24,3 +24,13 @@ def multiply(left: int, right: int) -> int:
+     This complements `add` and `subtract` with a simple multiplicative operation.
+     """
+     return left * right
++
++
++def divide(left: int, right: int) -> float:
++    """Return the quotient of two integers as a float.
++
++    Raises ZeroDivisionError when right is 0.
++    """
++    if right == 0:
++        raise ZeroDivisionError("division by zero")
++    return left / right
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+index 2f0dfd7..391678a 100644
+--- a/tests/test_basic.py
++++ b/tests/test_basic.py
+@@ -1,4 +1,4 @@
+-from cursor_cli_examples import add, subtract, multiply, hello
++from cursor_cli_examples import add, subtract, multiply, divide, hello
+ 
+ 
+ def test_hello():
+@@ -16,3 +16,13 @@ def test_subtract():
+ def test_multiply():
+     assert multiply(4, 3) == 12
+ 
++
++def test_divide():
++    assert divide(9, 2) == 4.5
++
++
++def test_divide_by_zero():
++    import pytest
++    with pytest.raises(ZeroDivisionError):
++        divide(1, 0)
++
+
+commit c3f5d3d2890f9b4f2f966d0cf4dcd9e6e824c732
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:39:55 2025 -0700
+
+    ci(docs): ensure agent uses cursoragent@cursor.com and post minimal diff-only PR comment
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index da15156..32256ba 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -54,7 +54,7 @@ jobs:
+           2. Update only relevant documentation to reflect new/changed behavior.
+           3. Keep changes minimal, accurate, and consistent with repository style.
+           4. Create a new PR stacked on top of the original PR with your documentation updates.
+-          5. Comment on the original PR with a link to the new PR.
++          5. Post a very short comment on the original PR that contains ONLY a link to the diff of your new PR (no extra text).
+ 
+           Allowed scope of edits:
+           - \`README*.md\` (root and subdirectories)
+@@ -65,11 +65,12 @@ jobs:
+           Guidance:
+           - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
+           - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
++          - When commenting, include only a single URL to the diff view of the new PR (e.g., \`https://github.com/${REPO}/pull/<NEW_PR_NUMBER>/files\`) with no additional wording.
+           - Prefer the smallest safe change set.
+           - If no documentation updates are necessary, exit without changes.
+ 
+           Deliverables (if changes are made):
+-          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
++          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR that contains only the diff link to the new PR.
+ 
+           Event payload JSON:
+           ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+
+commit f7246ff568211853a52cc6bcf9d34ca84e1bf2e3
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:34:36 2025 -0700
+
+    chore: update auto-update-docs workflow
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index b389ba0..da15156 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -45,7 +45,7 @@ jobs:
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
+-          cursor-agent -p --force "You are operating in a GitHub Actions runner.  
++          cursor-agent -p "You are operating in a GitHub Actions runner.  
+ 
+           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+ 
+@@ -72,4 +72,4 @@ jobs:
+           - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
+ 
+           Event payload JSON:
+-          ${EVENT_JSON}" --model "$MODEL" --output-format=text
++          ${EVENT_JSON}" --force --model "$MODEL" --output-format=text
+
+commit 9c4ada14ca1379b60bc9e35acf9f973c78d90337
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:32:00 2025 -0700
+
+    feat: add multiply function and unit test
+
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+index 57b4e32..b6cacd4 100644
+--- a/src/cursor_cli_examples/__init__.py
++++ b/src/cursor_cli_examples/__init__.py
+@@ -1,6 +1,6 @@
+ """Minimal package for Cursor CLI examples."""
+ 
+-__all__ = ["add", "subtract", "hello"]
++__all__ = ["add", "subtract", "multiply", "hello"]
+ 
+ def hello() -> str:
+     return "Hello world!"
+@@ -16,3 +16,11 @@ def add(left: int, right: int) -> int:
+ def subtract(left: int, right: int) -> int:
+     """Return the difference of two integers (left minus right)."""
+     return left - right
++
++
++def multiply(left: int, right: int) -> int:
++    """Return the product of two integers.
++
++    This complements `add` and `subtract` with a simple multiplicative operation.
++    """
++    return left * right
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+index 5dd3e91..2f0dfd7 100644
+--- a/tests/test_basic.py
++++ b/tests/test_basic.py
+@@ -1,4 +1,4 @@
+-from cursor_cli_examples import add, subtract, hello
++from cursor_cli_examples import add, subtract, multiply, hello
+ 
+ 
+ def test_hello():
+@@ -12,3 +12,7 @@ def test_add():
+ def test_subtract():
+     assert subtract(5, 2) == 3
+ 
++
++def test_multiply():
++    assert multiply(4, 3) == 12
++
+diff --git a/uv.lock b/uv.lock
+new file mode 100644
+index 0000000..423fa33
+--- /dev/null
++++ b/uv.lock
+@@ -0,0 +1,160 @@
++version = 1
++revision = 1
++requires-python = ">=3.12"
++
++[[package]]
++name = "colorama"
++version = "0.4.6"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335 },
++]
++
++[[package]]
++name = "coverage"
++version = "7.10.3"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/f4/2c/253cc41cd0f40b84c1c34c5363e0407d73d4a1cae005fed6db3b823175bd/coverage-7.10.3.tar.gz", hash = "sha256:812ba9250532e4a823b070b0420a36499859542335af3dca8f47fc6aa1a05619", size = 822936 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/b8/62/13c0b66e966c43d7aa64dadc8cd2afa1f5a2bf9bb863bdabc21fb94e8b63/coverage-7.10.3-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:449c1e2d3a84d18bd204258a897a87bc57380072eb2aded6a5b5226046207b42", size = 216262 },
++    { url = "https://files.pythonhosted.org/packages/b5/f0/59fdf79be7ac2f0206fc739032f482cfd3f66b18f5248108ff192741beae/coverage-7.10.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:1d4f9ce50b9261ad196dc2b2e9f1fbbee21651b54c3097a25ad783679fd18294", size = 216496 },
++    { url = "https://files.pythonhosted.org/packages/34/b1/bc83788ba31bde6a0c02eb96bbc14b2d1eb083ee073beda18753fa2c4c66/coverage-7.10.3-cp312-cp312-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:4dd4564207b160d0d45c36a10bc0a3d12563028e8b48cd6459ea322302a156d7", size = 247989 },
++    { url = "https://files.pythonhosted.org/packages/0c/29/f8bdf88357956c844bd872e87cb16748a37234f7f48c721dc7e981145eb7/coverage-7.10.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:5ca3c9530ee072b7cb6a6ea7b640bcdff0ad3b334ae9687e521e59f79b1d0437", size = 250738 },
++    { url = "https://files.pythonhosted.org/packages/ae/df/6396301d332b71e42bbe624670af9376f63f73a455cc24723656afa95796/coverage-7.10.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b6df359e59fa243c9925ae6507e27f29c46698359f45e568fd51b9315dbbe587", size = 251868 },
++    { url = "https://files.pythonhosted.org/packages/91/21/d760b2df6139b6ef62c9cc03afb9bcdf7d6e36ed4d078baacffa618b4c1c/coverage-7.10.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:a181e4c2c896c2ff64c6312db3bda38e9ade2e1aa67f86a5628ae85873786cea", size = 249790 },
++    { url = "https://files.pythonhosted.org/packages/69/91/5dcaa134568202397fa4023d7066d4318dc852b53b428052cd914faa05e1/coverage-7.10.3-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:a374d4e923814e8b72b205ef6b3d3a647bb50e66f3558582eda074c976923613", size = 247907 },
++    { url = "https://files.pythonhosted.org/packages/38/ed/70c0e871cdfef75f27faceada461206c1cc2510c151e1ef8d60a6fedda39/coverage-7.10.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:daeefff05993e5e8c6e7499a8508e7bd94502b6b9a9159c84fd1fe6bce3151cb", size = 249344 },
++    { url = "https://files.pythonhosted.org/packages/5f/55/c8a273ed503cedc07f8a00dcd843daf28e849f0972e4c6be4c027f418ad6/coverage-7.10.3-cp312-cp312-win32.whl", hash = "sha256:187ecdcac21f9636d570e419773df7bd2fda2e7fa040f812e7f95d0bddf5f79a", size = 218693 },
++    { url = "https://files.pythonhosted.org/packages/94/58/dd3cfb2473b85be0b6eb8c5b6d80b6fc3f8f23611e69ef745cef8cf8bad5/coverage-7.10.3-cp312-cp312-win_amd64.whl", hash = "sha256:4a50ad2524ee7e4c2a95e60d2b0b83283bdfc745fe82359d567e4f15d3823eb5", size = 219501 },
++    { url = "https://files.pythonhosted.org/packages/56/af/7cbcbf23d46de6f24246e3f76b30df099d05636b30c53c158a196f7da3ad/coverage-7.10.3-cp312-cp312-win_arm64.whl", hash = "sha256:c112f04e075d3495fa3ed2200f71317da99608cbb2e9345bdb6de8819fc30571", size = 218135 },
++    { url = "https://files.pythonhosted.org/packages/0a/ff/239e4de9cc149c80e9cc359fab60592365b8c4cbfcad58b8a939d18c6898/coverage-7.10.3-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:b99e87304ffe0eb97c5308447328a584258951853807afdc58b16143a530518a", size = 216298 },
++    { url = "https://files.pythonhosted.org/packages/56/da/28717da68f8ba68f14b9f558aaa8f3e39ada8b9a1ae4f4977c8f98b286d5/coverage-7.10.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:4af09c7574d09afbc1ea7da9dcea23665c01f3bc1b1feb061dac135f98ffc53a", size = 216546 },
++    { url = "https://files.pythonhosted.org/packages/de/bb/e1ade16b9e3f2d6c323faeb6bee8e6c23f3a72760a5d9af102ef56a656cb/coverage-7.10.3-cp313-cp313-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:488e9b50dc5d2aa9521053cfa706209e5acf5289e81edc28291a24f4e4488f46", size = 247538 },
++    { url = "https://files.pythonhosted.org/packages/ea/2f/6ae1db51dc34db499bfe340e89f79a63bd115fc32513a7bacdf17d33cd86/coverage-7.10.3-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:913ceddb4289cbba3a310704a424e3fb7aac2bc0c3a23ea473193cb290cf17d4", size = 250141 },
++    { url = "https://files.pythonhosted.org/packages/4f/ed/33efd8819895b10c66348bf26f011dd621e804866c996ea6893d682218df/coverage-7.10.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6b1f91cbc78c7112ab84ed2a8defbccd90f888fcae40a97ddd6466b0bec6ae8a", size = 251415 },
++    { url = "https://files.pythonhosted.org/packages/26/04/cb83826f313d07dc743359c9914d9bc460e0798da9a0e38b4f4fabc207ed/coverage-7.10.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:b0bac054d45af7cd938834b43a9878b36ea92781bcb009eab040a5b09e9927e3", size = 249575 },
++    { url = "https://files.pythonhosted.org/packages/2d/fd/ae963c7a8e9581c20fa4355ab8940ca272554d8102e872dbb932a644e410/coverage-7.10.3-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:fe72cbdd12d9e0f4aca873fa6d755e103888a7f9085e4a62d282d9d5b9f7928c", size = 247466 },
++    { url = "https://files.pythonhosted.org/packages/99/e8/b68d1487c6af370b8d5ef223c6d7e250d952c3acfbfcdbf1a773aa0da9d2/coverage-7.10.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:c1e2e927ab3eadd7c244023927d646e4c15c65bb2ac7ae3c3e9537c013700d21", size = 249084 },
++    { url = "https://files.pythonhosted.org/packages/66/4d/a0bcb561645c2c1e21758d8200443669d6560d2a2fb03955291110212ec4/coverage-7.10.3-cp313-cp313-win32.whl", hash = "sha256:24d0c13de473b04920ddd6e5da3c08831b1170b8f3b17461d7429b61cad59ae0", size = 218735 },
++    { url = "https://files.pythonhosted.org/packages/6a/c3/78b4adddbc0feb3b223f62761e5f9b4c5a758037aaf76e0a5845e9e35e48/coverage-7.10.3-cp313-cp313-win_amd64.whl", hash = "sha256:3564aae76bce4b96e2345cf53b4c87e938c4985424a9be6a66ee902626edec4c", size = 219531 },
++    { url = "https://files.pythonhosted.org/packages/70/1b/1229c0b2a527fa5390db58d164aa896d513a1fbb85a1b6b6676846f00552/coverage-7.10.3-cp313-cp313-win_arm64.whl", hash = "sha256:f35580f19f297455f44afcd773c9c7a058e52eb6eb170aa31222e635f2e38b87", size = 218162 },
++    { url = "https://files.pythonhosted.org/packages/fc/26/1c1f450e15a3bf3eaecf053ff64538a2612a23f05b21d79ce03be9ff5903/coverage-7.10.3-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:07009152f497a0464ffdf2634586787aea0e69ddd023eafb23fc38267db94b84", size = 217003 },
++    { url = "https://files.pythonhosted.org/packages/29/96/4b40036181d8c2948454b458750960956a3c4785f26a3c29418bbbee1666/coverage-7.10.3-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:8dd2ba5f0c7e7e8cc418be2f0c14c4d9e3f08b8fb8e4c0f83c2fe87d03eb655e", size = 217238 },
++    { url = "https://files.pythonhosted.org/packages/62/23/8dfc52e95da20957293fb94d97397a100e63095ec1e0ef5c09dd8c6f591a/coverage-7.10.3-cp313-cp313t-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:1ae22b97003c74186e034a93e4f946c75fad8c0ce8d92fbbc168b5e15ee2841f", size = 258561 },
++    { url = "https://files.pythonhosted.org/packages/59/95/00e7fcbeda3f632232f4c07dde226afe3511a7781a000aa67798feadc535/coverage-7.10.3-cp313-cp313t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:eb329f1046888a36b1dc35504d3029e1dd5afe2196d94315d18c45ee380f67d5", size = 260735 },
++    { url = "https://files.pythonhosted.org/packages/9e/4c/f4666cbc4571804ba2a65b078ff0de600b0b577dc245389e0bc9b69ae7ca/coverage-7.10.3-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ce01048199a91f07f96ca3074b0c14021f4fe7ffd29a3e6a188ac60a5c3a4af8", size = 262960 },
++    { url = "https://files.pythonhosted.org/packages/c1/a5/8a9e8a7b12a290ed98b60f73d1d3e5e9ced75a4c94a0d1a671ce3ddfff2a/coverage-7.10.3-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:08b989a06eb9dfacf96d42b7fb4c9a22bafa370d245dc22fa839f2168c6f9fa1", size = 260515 },
++    { url = "https://files.pythonhosted.org/packages/86/11/bb59f7f33b2cac0c5b17db0d9d0abba9c90d9eda51a6e727b43bd5fce4ae/coverage-7.10.3-cp313-cp313t-musllinux_1_2_i686.whl", hash = "sha256:669fe0d4e69c575c52148511029b722ba8d26e8a3129840c2ce0522e1452b256", size = 258278 },
++    { url = "https://files.pythonhosted.org/packages/cc/22/3646f8903743c07b3e53fded0700fed06c580a980482f04bf9536657ac17/coverage-7.10.3-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:3262d19092771c83f3413831d9904b1ccc5f98da5de4ffa4ad67f5b20c7aaf7b", size = 259408 },
++    { url = "https://files.pythonhosted.org/packages/d2/5c/6375e9d905da22ddea41cd85c30994b8b6f6c02e44e4c5744b76d16b026f/coverage-7.10.3-cp313-cp313t-win32.whl", hash = "sha256:cc0ee4b2ccd42cab7ee6be46d8a67d230cb33a0a7cd47a58b587a7063b6c6b0e", size = 219396 },
++    { url = "https://files.pythonhosted.org/packages/33/3b/7da37fd14412b8c8b6e73c3e7458fef6b1b05a37f990a9776f88e7740c89/coverage-7.10.3-cp313-cp313t-win_amd64.whl", hash = "sha256:03db599f213341e2960430984e04cf35fb179724e052a3ee627a068653cf4a7c", size = 220458 },
++    { url = "https://files.pythonhosted.org/packages/28/cc/59a9a70f17edab513c844ee7a5c63cf1057041a84cc725b46a51c6f8301b/coverage-7.10.3-cp313-cp313t-win_arm64.whl", hash = "sha256:46eae7893ba65f53c71284585a262f083ef71594f05ec5c85baf79c402369098", size = 218722 },
++    { url = "https://files.pythonhosted.org/packages/2d/84/bb773b51a06edbf1231b47dc810a23851f2796e913b335a0fa364773b842/coverage-7.10.3-cp314-cp314-macosx_10_13_x86_64.whl", hash = "sha256:bce8b8180912914032785850d8f3aacb25ec1810f5f54afc4a8b114e7a9b55de", size = 216280 },
++    { url = "https://files.pythonhosted.org/packages/92/a8/4d8ca9c111d09865f18d56facff64d5fa076a5593c290bd1cfc5dceb8dba/coverage-7.10.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:07790b4b37d56608536f7c1079bd1aa511567ac2966d33d5cec9cf520c50a7c8", size = 216557 },
++    { url = "https://files.pythonhosted.org/packages/fe/b2/eb668bfc5060194bc5e1ccd6f664e8e045881cfee66c42a2aa6e6c5b26e8/coverage-7.10.3-cp314-cp314-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:e79367ef2cd9166acedcbf136a458dfe9a4a2dd4d1ee95738fb2ee581c56f667", size = 247598 },
++    { url = "https://files.pythonhosted.org/packages/fd/b0/9faa4ac62c8822219dd83e5d0e73876398af17d7305968aed8d1606d1830/coverage-7.10.3-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:419d2a0f769f26cb1d05e9ccbc5eab4cb5d70231604d47150867c07822acbdf4", size = 250131 },
++    { url = "https://files.pythonhosted.org/packages/4e/90/203537e310844d4bf1bdcfab89c1e05c25025c06d8489b9e6f937ad1a9e2/coverage-7.10.3-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ee221cf244757cdc2ac882e3062ab414b8464ad9c884c21e878517ea64b3fa26", size = 251485 },
++    { url = "https://files.pythonhosted.org/packages/b9/b2/9d894b26bc53c70a1fe503d62240ce6564256d6d35600bdb86b80e516e7d/coverage-7.10.3-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:c2079d8cdd6f7373d628e14b3357f24d1db02c9dc22e6a007418ca7a2be0435a", size = 249488 },
++    { url = "https://files.pythonhosted.org/packages/b4/28/af167dbac5281ba6c55c933a0ca6675d68347d5aee39cacc14d44150b922/coverage-7.10.3-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:bd8df1f83c0703fa3ca781b02d36f9ec67ad9cb725b18d486405924f5e4270bd", size = 247419 },
++    { url = "https://files.pythonhosted.org/packages/f4/1c/9a4ddc9f0dcb150d4cd619e1c4bb39bcf694c6129220bdd1e5895d694dda/coverage-7.10.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:6b4e25e0fa335c8aa26e42a52053f3786a61cc7622b4d54ae2dad994aa754fec", size = 248917 },
++    { url = "https://files.pythonhosted.org/packages/92/27/c6a60c7cbe10dbcdcd7fc9ee89d531dc04ea4c073800279bb269954c5a9f/coverage-7.10.3-cp314-cp314-win32.whl", hash = "sha256:d7c3d02c2866deb217dce664c71787f4b25420ea3eaf87056f44fb364a3528f5", size = 218999 },
++    { url = "https://files.pythonhosted.org/packages/36/09/a94c1369964ab31273576615d55e7d14619a1c47a662ed3e2a2fe4dee7d4/coverage-7.10.3-cp314-cp314-win_amd64.whl", hash = "sha256:9c8916d44d9e0fe6cdb2227dc6b0edd8bc6c8ef13438bbbf69af7482d9bb9833", size = 219801 },
++    { url = "https://files.pythonhosted.org/packages/23/59/f5cd2a80f401c01cf0f3add64a7b791b7d53fd6090a4e3e9ea52691cf3c4/coverage-7.10.3-cp314-cp314-win_arm64.whl", hash = "sha256:1007d6a2b3cf197c57105cc1ba390d9ff7f0bee215ced4dea530181e49c65ab4", size = 218381 },
++    { url = "https://files.pythonhosted.org/packages/73/3d/89d65baf1ea39e148ee989de6da601469ba93c1d905b17dfb0b83bd39c96/coverage-7.10.3-cp314-cp314t-macosx_10_13_x86_64.whl", hash = "sha256:ebc8791d346410d096818788877d675ca55c91db87d60e8f477bd41c6970ffc6", size = 217019 },
++    { url = "https://files.pythonhosted.org/packages/7d/7d/d9850230cd9c999ce3a1e600f85c2fff61a81c301334d7a1faa1a5ba19c8/coverage-7.10.3-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:1f4e4d8e75f6fd3c6940ebeed29e3d9d632e1f18f6fb65d33086d99d4d073241", size = 217237 },
++    { url = "https://files.pythonhosted.org/packages/36/51/b87002d417202ab27f4a1cd6bd34ee3b78f51b3ddbef51639099661da991/coverage-7.10.3-cp314-cp314t-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:24581ed69f132b6225a31b0228ae4885731cddc966f8a33fe5987288bdbbbd5e", size = 258735 },
++    { url = "https://files.pythonhosted.org/packages/1c/02/1f8612bfcb46fc7ca64a353fff1cd4ed932bb6e0b4e0bb88b699c16794b8/coverage-7.10.3-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:ec151569ddfccbf71bac8c422dce15e176167385a00cd86e887f9a80035ce8a5", size = 260901 },
++    { url = "https://files.pythonhosted.org/packages/aa/3a/fe39e624ddcb2373908bd922756384bb70ac1c5009b0d1674eb326a3e428/coverage-7.10.3-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2ae8e7c56290b908ee817200c0b65929b8050bc28530b131fe7c6dfee3e7d86b", size = 263157 },
++    { url = "https://files.pythonhosted.org/packages/5e/89/496b6d5a10fa0d0691a633bb2b2bcf4f38f0bdfcbde21ad9e32d1af328ed/coverage-7.10.3-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:5fb742309766d7e48e9eb4dc34bc95a424707bc6140c0e7d9726e794f11b92a0", size = 260597 },
++    { url = "https://files.pythonhosted.org/packages/b6/a6/8b5bf6a9e8c6aaeb47d5fe9687014148efc05c3588110246d5fdeef9b492/coverage-7.10.3-cp314-cp314t-musllinux_1_2_i686.whl", hash = "sha256:c65e2a5b32fbe1e499f1036efa6eb9cb4ea2bf6f7168d0e7a5852f3024f471b1", size = 258353 },
++    { url = "https://files.pythonhosted.org/packages/c3/6d/ad131be74f8afd28150a07565dfbdc86592fd61d97e2dc83383d9af219f0/coverage-7.10.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:d48d2cb07d50f12f4f18d2bb75d9d19e3506c26d96fffabf56d22936e5ed8f7c", size = 259504 },
++    { url = "https://files.pythonhosted.org/packages/ec/30/fc9b5097092758cba3375a8cc4ff61774f8cd733bcfb6c9d21a60077a8d8/coverage-7.10.3-cp314-cp314t-win32.whl", hash = "sha256:dec0d9bc15ee305e09fe2cd1911d3f0371262d3cfdae05d79515d8cb712b4869", size = 219782 },
++    { url = "https://files.pythonhosted.org/packages/72/9b/27fbf79451b1fac15c4bda6ec6e9deae27cf7c0648c1305aa21a3454f5c4/coverage-7.10.3-cp314-cp314t-win_amd64.whl", hash = "sha256:424ea93a323aa0f7f01174308ea78bde885c3089ec1bef7143a6d93c3e24ef64", size = 220898 },
++    { url = "https://files.pythonhosted.org/packages/d1/cf/a32bbf92869cbf0b7c8b84325327bfc718ad4b6d2c63374fef3d58e39306/coverage-7.10.3-cp314-cp314t-win_arm64.whl", hash = "sha256:f5983c132a62d93d71c9ef896a0b9bf6e6828d8d2ea32611f58684fba60bba35", size = 218922 },
++    { url = "https://files.pythonhosted.org/packages/84/19/e67f4ae24e232c7f713337f3f4f7c9c58afd0c02866fb07c7b9255a19ed7/coverage-7.10.3-py3-none-any.whl", hash = "sha256:416a8d74dc0adfd33944ba2f405897bab87b7e9e84a391e09d241956bd953ce1", size = 207921 },
++]
++
++[[package]]
++name = "cursor-cli-examples"
++version = "0.1.0"
++source = { editable = "." }
++
++[package.optional-dependencies]
++test = [
++    { name = "pytest" },
++    { name = "pytest-cov" },
++]
++
++[package.metadata]
++requires-dist = [
++    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.2" },
++    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=5.0" },
++]
++provides-extras = ["test"]
++
++[[package]]
++name = "iniconfig"
++version = "2.1.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/f2/97/ebf4da567aa6827c909642694d71c9fcf53e5b504f2d96afea02718862f3/iniconfig-2.1.0.tar.gz", hash = "sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7", size = 4793 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050 },
++]
++
++[[package]]
++name = "packaging"
++version = "25.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/a1/d4/1fc4078c65507b51b96ca8f8c3ba19e6a61c8253c72794544580a7b6c24d/packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f", size = 165727 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469 },
++]
++
++[[package]]
++name = "pluggy"
++version = "1.6.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538 },
++]
++
++[[package]]
++name = "pygments"
++version = "2.19.2"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217 },
++]
++
++[[package]]
++name = "pytest"
++version = "8.4.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "colorama", marker = "sys_platform == 'win32'" },
++    { name = "iniconfig" },
++    { name = "packaging" },
++    { name = "pluggy" },
++    { name = "pygments" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/08/ba/45911d754e8eba3d5a841a5ce61a65a685ff1798421ac054f85aa8747dfb/pytest-8.4.1.tar.gz", hash = "sha256:7c67fd69174877359ed9371ec3af8a3d2b04741818c51e5e99cc1742251fa93c", size = 1517714 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/29/16/c8a903f4c4dffe7a12843191437d7cd8e32751d5de349d45d3fe69544e87/pytest-8.4.1-py3-none-any.whl", hash = "sha256:539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7", size = 365474 },
++]
++
++[[package]]
++name = "pytest-cov"
++version = "6.2.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "coverage" },
++    { name = "pluggy" },
++    { name = "pytest" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/18/99/668cade231f434aaa59bbfbf49469068d2ddd945000621d3d165d2e7dd7b/pytest_cov-6.2.1.tar.gz", hash = "sha256:25cc6cc0a5358204b8108ecedc51a9b57b34cc6b8c967cc2c01a4e00d8a67da2", size = 69432 }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/bc/16/4ea354101abb1287856baa4af2732be351c7bee728065aed451b678153fd/pytest_cov-6.2.1-py3-none-any.whl", hash = "sha256:f5bc4c23f42f1cdd23c70b1dab1bbaef4fc505ba950d53e0081d0730dd7e86d5", size = 24644 },
++]
+
+commit 77e4a0e467dc3bab111a1ac9b65b9b5a8d9e6bce
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:30:18 2025 -0700
+
+    feat: add subtract() and tests
+
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+index 2468471..57b4e32 100644
+--- a/src/cursor_cli_examples/__init__.py
++++ b/src/cursor_cli_examples/__init__.py
+@@ -1,6 +1,6 @@
+ """Minimal package for Cursor CLI examples."""
+ 
+-__all__ = ["add", "hello"]
++__all__ = ["add", "subtract", "hello"]
+ 
+ def hello() -> str:
+     return "Hello world!"
+@@ -11,3 +11,8 @@ def add(left: int, right: int) -> int:
+     This simple function provides something for tests to exercise.
+     """
+     return left + right
++
++
++def subtract(left: int, right: int) -> int:
++    """Return the difference of two integers (left minus right)."""
++    return left - right
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+index 04d3e1d..5dd3e91 100644
+--- a/tests/test_basic.py
++++ b/tests/test_basic.py
+@@ -1,4 +1,4 @@
+-from cursor_cli_examples import add, hello
++from cursor_cli_examples import add, subtract, hello
+ 
+ 
+ def test_hello():
+@@ -8,3 +8,7 @@ def test_hello():
+ def test_add():
+     assert add(2, 3) == 5
+ 
++
++def test_subtract():
++    assert subtract(5, 2) == 3
++
+
+commit dec89172a7f8be3fa2c00a09e8e0d6f90be496a3
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:28:28 2025 -0700
+
+    chore(ci): update GitHub workflows
+
+diff --git a/.github/workflows/auto-fix-ci.yml b/.github/workflows/auto-fix-ci.yml
+index e8d164a..0d14a89 100644
+--- a/.github/workflows/auto-fix-ci.yml
++++ b/.github/workflows/auto-fix-ci.yml
+@@ -47,7 +47,7 @@ jobs:
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
+-          cursor-agent -p "You are operating in a GitHub Actions runner.
++          cursor-agent -p --force "You are operating in a GitHub Actions runner.
+ 
+           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+ 
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index 54556af..b389ba0 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -1,8 +1,6 @@
+ name: Auto Update Docs
+ 
+ on:
+-  push:
+-    branches: [main]
+   pull_request:
+     types: [opened, synchronize, reopened, ready_for_review]
+ 
+
+commit a8eaa791903b5f44bd984bf1ed6c3d6f48dacf56
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:24:05 2025 -0700
+
+    ci(docs): add --force to cursor-agent invocation
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index b5c8883..54556af 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -47,7 +47,7 @@ jobs:
+         run: |
+           EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
+ 
+-          cursor-agent -p "You are operating in a GitHub Actions runner.
++          cursor-agent -p --force "You are operating in a GitHub Actions runner.  
+ 
+           You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
+ 
+
+commit 92703cbe5eb56a572b063d720fe51bca85fe8145
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:16:27 2025 -0700
+
+    ci(docs): trigger auto-update-docs on push to main
+
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+index f0b1d28..b5c8883 100644
+--- a/.github/workflows/auto-update-docs.yml
++++ b/.github/workflows/auto-update-docs.yml
+@@ -1,6 +1,8 @@
+ name: Auto Update Docs
+ 
+ on:
++  push:
++    branches: [main]
+   pull_request:
+     types: [opened, synchronize, reopened, ready_for_review]
+ 
+
+commit 01688894bf7cbe1d2e9493552a978d825a67d463
+Author: ericzakariasson <eric@anysphere.co>
+Date:   Mon Aug 11 22:12:20 2025 -0700
+
+    Add Test CI workflow, pytest setup with coverage, sample tests, and repo ignore files
+
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..b9878e5
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,34 @@
++# Ignore Python cache and build artifacts
++__pycache__/
++*.py[cod]
++*.egg-info/
++build/
++dist/
++
++# Virtual environments
++.venv/
++venv/
++env/
++ENV/
++
++# Test/coverage artifacts
++.tox/
++.nox/
++.pytest_cache/
++.coverage*
++htmlcov/
++
++# VCS
++.git/
++.gitignore
++
++# IDE/editor
++.idea/
++.vscode/
++
++# macOS
++.DS_Store
++
++# Cursor
++.cursor/
++
+diff --git a/.github/workflows/auto-fix-ci.yml b/.github/workflows/auto-fix-ci.yml
+new file mode 100644
+index 0000000..e8d164a
+--- /dev/null
++++ b/.github/workflows/auto-fix-ci.yml
+@@ -0,0 +1,73 @@
++name: Auto Fix CI Failures
++
++on:
++  workflow_run:
++    workflows: [Test]
++    types: [completed]
++
++permissions:
++  contents: write
++  pull-requests: write
++  actions: read
++
++jobs:
++  attempt-fix:
++    if: >-
++      ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Auto Fix CI Failures' }}
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git identity
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
++          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
++          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
++          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
++
++      - name: Run Cursor agent (headless) to fix failing CI
++        env:
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          MODEL: gpt-5
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          REPO: ${{ github.repository }}
++          OWNER: ${{ github.repository_owner }}
++          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
++          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
++        run: |
++          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
++
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
++
++          Task:
++          1. Access the failed branch for the triggering workflow run.
++          2. Download and inspect the logs of the failed job.
++          3. Get the diff of the failed PR.
++          4. Attempt to resolve the issue by making minimal, targeted edits consistent with the repo's style.
++          5. Create a new PR to the failed PR with your attempted fix.
++          6. Comment on the failed PR with a link to the new PR.
++
++          Guidance:
++          - Use env vars REPO, OWNER, WORKFLOW_RUN_ID, WORKFLOW_RUN_URL.
++          - Use \`gh api\`, \`gh run download\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, and git commands as needed.
++          - Prefer the smallest safe change. Do not alter secrets, licensing, or unrelated config.
++          - If uncertain about a risky change, leave a brief rationale in modified files.
++          - If no actionable fix is possible, exit without changes.
++
++          Deliverables (if changes are made):
++          - Push a new branch, open a PR targeting the failing PR's branch (stacked on top), and post a comment on the original PR linking to the new PR.
++
++          Event payload JSON:
++          ${EVENT_JSON}" --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/auto-update-docs.yml b/.github/workflows/auto-update-docs.yml
+new file mode 100644
+index 0000000..f0b1d28
+--- /dev/null
++++ b/.github/workflows/auto-update-docs.yml
+@@ -0,0 +1,75 @@
++name: Auto Update Docs
++
++on:
++  pull_request:
++    types: [opened, synchronize, reopened, ready_for_review]
++
++permissions:
++  contents: write
++  pull-requests: write
++
++jobs:
++  auto-docs:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++        with:
++          fetch-depth: 0
++
++      - name: Install Cursor CLI
++        run: |
++          curl https://cursor.com/install -fsS | bash
++          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
++
++      - name: Configure git identity
++        run: |
++          git config user.name "Cursor Agent"
++          git config user.email "cursoragent@cursor.com"
++          echo "GIT_AUTHOR_NAME=Cursor Agent" >> $GITHUB_ENV
++          echo "GIT_AUTHOR_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
++          echo "GIT_COMMITTER_NAME=Cursor Agent" >> $GITHUB_ENV
++          echo "GIT_COMMITTER_EMAIL=cursoragent@cursor.com" >> $GITHUB_ENV
++
++      - name: Run Cursor agent (headless) to update docs based on PR diff
++        env:
++          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
++          MODEL: gpt-5
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++          REPO: ${{ github.repository }}
++          OWNER: ${{ github.repository_owner }}
++          PR_NUMBER: ${{ github.event.pull_request.number }}
++          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
++          BASE_REF: ${{ github.base_ref }}
++          HEAD_REF: ${{ github.head_ref }}
++        run: |
++          EVENT_JSON=$(cat "$GITHUB_EVENT_PATH" | sed 's/`/\\`/g')
++
++          cursor-agent -p "You are operating in a GitHub Actions runner.
++
++          You can execute shell commands. The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`.
++
++          Task:
++          1. Fetch the PR diff for PR_NUMBER and understand the changes.
++          2. Update only relevant documentation to reflect new/changed behavior.
++          3. Keep changes minimal, accurate, and consistent with repository style.
++          4. Create a new PR stacked on top of the original PR with your documentation updates.
++          5. Comment on the original PR with a link to the new PR.
++
++          Allowed scope of edits:
++          - \`README*.md\` (root and subdirectories)
++          - \`docs/**\` and \`documentation/**\`
++          - \`CHANGELOG.md\`, ADRs, architecture docs, API docs
++          - Inline code comments only when essential to clarify behavior. Do not alter code logic.
++
++          Guidance:
++          - Use env vars: REPO, OWNER, PR_NUMBER, PR_HTML_URL, BASE_REF, HEAD_REF.
++          - Use \`gh pr diff ${PR_NUMBER}\` to obtain the unified diff; you may also use \`git\` where useful.
++          - Prefer the smallest safe change set.
++          - If no documentation updates are necessary, exit without changes.
++
++          Deliverables (if changes are made):
++          - Push a new branch, open a PR targeting the original PR's branch (stacked), and post a comment on the original PR linking to the new PR.
++
++          Event payload JSON:
++          ${EVENT_JSON}" --model "$MODEL" --output-format=text
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+new file mode 100644
+index 0000000..dbf7191
+--- /dev/null
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,28 @@
++name: Test
++
++on:
++  push:
++    branches: [main]
++  pull_request:
++    branches: [main]
++
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++
++      - name: Set up Python
++        uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++
++      - name: Install dependencies
++        run: |
++          python -m pip install --upgrade pip
++          pip install .[test]
++
++      - name: Run tests
++        run: |
++          pytest
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..ea7e7c8
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,80 @@
++# Byte-compiled / optimized / DLL files
++__pycache__/
++*.py[cod]
++*$py.class
++
++# C extensions
++*.so
++
++# Distribution / packaging
++.Python
++build/
++develop-eggs/
++dist/
++downloads/
++eggs/
++.eggs/
++lib/
++lib64/
++parts/
++sdist/
++var/
++wheels/
++share/python-wheels/
++*.egg-info/
++*.egg
++
++# Virtual environments
++.venv/
++venv/
++ENV/
++env/
++.env
++.env.*
++
++# Installer logs
++pip-log.txt
++pip-delete-this-directory.txt
++
++# Unit test / coverage reports
++htmlcov/
++.tox/
++.nox/
++.coverage
++.coverage.*
++.cache
++nosetests.xml
++coverage.xml
++*.cover
++*.py,cover
++.hypothesis/
++.pytest_cache/
++
++# Type checker caches
++.mypy_cache/
++.ruff_cache/
++pyrightconfig.json
++
++# Jupyter Notebook
++.ipynb_checkpoints
++
++# IDE/editor
++.idea/
++.vscode/
++*.swp
++*.swo
++
++# macOS
++.DS_Store
++.AppleDouble
++.LSOverride
++
++# Logs
++*.log
++logs/
++
++# Project-specific
++.cursor/
++.coverage
++
++
+diff --git a/pyproject.toml b/pyproject.toml
+new file mode 100644
+index 0000000..d78a878
+--- /dev/null
++++ b/pyproject.toml
+@@ -0,0 +1,19 @@
++[project]
++name = "cursor_cli_examples"
++version = "0.1.0"
++requires-python = ">=3.12"
++dependencies = []
++
++[project.optional-dependencies]
++test = [
++  "pytest>=8.2",
++  "pytest-cov>=5.0",
++]
++
++[build-system]
++requires = ["hatchling"]
++build-backend = "hatchling.build"
++
++[tool.pytest.ini_options]
++addopts = "-q --cov=cursor_cli_examples --cov-report=term-missing"
++testpaths = ["tests"]
+diff --git a/src/cursor_cli_examples/__init__.py b/src/cursor_cli_examples/__init__.py
+new file mode 100644
+index 0000000..2468471
+--- /dev/null
++++ b/src/cursor_cli_examples/__init__.py
+@@ -0,0 +1,13 @@
++"""Minimal package for Cursor CLI examples."""
++
++__all__ = ["add", "hello"]
++
++def hello() -> str:
++    return "Hello world!"
++
++def add(left: int, right: int) -> int:
++    """Return the sum of two integers.
++
++    This simple function provides something for tests to exercise.
++    """
++    return left + right
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+new file mode 100644
+index 0000000..04d3e1d
+--- /dev/null
++++ b/tests/test_basic.py
+@@ -0,0 +1,10 @@
++from cursor_cli_examples import add, hello
++
++
++def test_hello():
++    assert hello() == "Hello world!"
++
++
++def test_add():
++    assert add(2, 3) == 5
++
