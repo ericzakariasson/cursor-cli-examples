@@ -1,4 +1,4 @@
-name: Auto Update Docs
+name: Update Docs
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  auto-docs:
+  docs:
     if: ${{ !startsWith(github.head_ref, 'docs/') }}
     runs-on: ubuntu-latest
     steps:

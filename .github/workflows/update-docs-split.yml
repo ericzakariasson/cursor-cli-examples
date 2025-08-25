@@ -1,4 +1,4 @@
-name: Auto Update Docs (Split)
+name: Update Docs (Split)
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  auto-docs-split:
+  docs-split:
     if: ${{ !startsWith(github.head_ref, 'docs/') }}
     runs-on: ubuntu-latest
     steps:
@@ -108,14 +108,14 @@ jobs:
           DOCS_BRANCH="${BRANCH_PREFIX}/${HEAD_REF}"
           COMPARE_URL="https://github.com/${REPO}/compare/${BASE_REF}...${DOCS_BRANCH}?quick_pull=1&title=docs%3A+updates+for+PR+%23${PR_NUMBER}"
 
-          COMMENT_FILE="${RUNNER_TEMP}/auto-docs-comment.md"
+          COMMENT_FILE="${RUNNER_TEMP}/docs-comment.md"
           {
             echo "Cursor updated docs branch: \`${DOCS_BRANCH}\`"
             echo "You can now [view the diff and quick-create a PR to merge these docs updates](${COMPARE_URL})."
             echo
             echo "_This comment will be updated on subsequent runs as the PR changes._"
             echo
-            echo "<!-- auto-update-docs-split -->"
+            echo "<!-- update-docs-split -->"
           } > "$COMMENT_FILE"
 
           # If editing the last bot comment fails (older gh), fall back to creating a new comment
