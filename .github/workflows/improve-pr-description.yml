@@ -1,4 +1,4 @@
-name: Auto Improve PR Description
+name: Improve PR Description
 
 on:
   pull_request:

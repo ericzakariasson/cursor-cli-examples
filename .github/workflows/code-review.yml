@@ -1,0 +1,92 @@
+name: Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    # Skip automated code review for draft PRs
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+
+      - name: Perform automated code review
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cursor-agent -p "You are operating in a GitHub Actions runner performing automated code review.
+
+          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. You have permission to comment on pull requests.
+
+          # Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ github.event.pull_request.number }}
+          - PR Head SHA: ${{ github.event.pull_request.head.sha }}
+          - PR Base SHA: ${{ github.event.pull_request.base.sha }}
+
+          # Goal:
+          - Analyze the pull request diff for potential bugs, security issues, performance problems, and code quality issues
+          - Leave constructive comments on specific lines where issues are found
+          - Focus on actionable feedback that helps improve code quality
+
+          # Requirements:
+          1) Use `gh pr diff` to get the full diff of changes in the PR
+          2) Analyze the code changes for common issues:
+             - Potential null pointer exceptions or undefined references
+             - Resource leaks (unclosed files, connections, etc.)
+             - SQL injection vulnerabilities
+             - XSS vulnerabilities
+             - Race conditions or concurrency issues
+             - Performance anti-patterns
+             - Incorrect error handling
+             - Logic errors or edge cases
+             - Security vulnerabilities
+             - Code style violations that could lead to bugs
+          3) For each issue found, create a review comment on the specific line using:
+             `gh pr review --comment-body \"[ISSUE DESCRIPTION]\" --file \"[FILENAME]\" --line [LINE_NUMBER]`
+          4) Only comment on lines that were actually changed in the PR (added or modified lines)
+          5) Provide constructive, specific feedback with suggestions for fixes
+          6) Avoid commenting on minor style issues unless they could lead to bugs
+          7) If no significant issues are found, do not leave any comments
+          8) Group related issues in the same comment when they occur on adjacent lines
+
+          # Output format:
+          - Use clear, concise language
+          - Explain why something is a problem
+          - Suggest specific solutions when possible
+          - Be respectful and constructive in tone
+          - Prefix comments with appropriate severity: [BUG], [SECURITY], [PERFORMANCE], or [QUALITY]
+
+          # Inputs and conventions:
+          - Use `gh pr view`, `gh pr diff`, and `gh api` commands to gather PR information
+          - Focus on substantive issues that could cause real problems
+          - Avoid false positives - only flag clear issues
+          - Check if previous reviews exist to avoid duplicate comments
+          - Use `gh pr review --approve` with no comments if no issues are found
+
+          # Rate limiting and best practices:
+          - Limit to maximum 10 comments per PR to avoid spam
+          - Focus on the most critical issues first
+          - Use batch review comments when possible rather than individual line comments
+          " --force --model "$MODEL" --output-format=text

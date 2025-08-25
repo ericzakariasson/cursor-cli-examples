@@ -1,4 +1,4 @@
-name: Auto Translate Keys
+name: Translate Keys
 
 on:
   pull_request:
