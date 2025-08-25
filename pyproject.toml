@@ -2,13 +2,18 @@
 name = "cursor_cli_examples"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "flask>=3.0.0",
+]
 
 [project.optional-dependencies]
 test = [
   "pytest>=8.2",
   "pytest-cov>=5.0",
 ]
+
+[project.scripts]
+web = "cursor_cli_examples.app:main"
 
 [build-system]
 requires = ["hatchling"]

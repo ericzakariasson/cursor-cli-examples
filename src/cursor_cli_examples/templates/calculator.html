@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .calculator-modes {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .calculator-section {
+            display: none;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+
+        .calculator-section.active {
+            display: block;
+        }
+
+        .basic-calculator {
+            display: grid;
+            gap: 15px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-group label {
+            min-width: 80px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="number"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .operation-buttons {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .op-btn {
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .op-btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .op-btn.selected {
+            background: #764ba2;
+        }
+
+        .calculate-btn {
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #28a745;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .calculate-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border-left: 5px solid #28a745;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+        }
+
+        .error {
+            border-left-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .chain-calculator {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .chain-operation {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .chain-operation select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .chain-operation input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .remove-operation {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .add-operation, .clear-chain {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 15px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+
+        .chain-controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 600px) {
+            .calculator-modes {
+                flex-direction: column;
+            }
+            
+            .operation-buttons {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .input-group label {
+                min-width: auto;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧮 Calculator</h1>
+        
+        <div class="calculator-modes">
+            <button class="mode-btn active" onclick="switchMode('basic')">Basic Calculator</button>
+            <button class="mode-btn" onclick="switchMode('chain')">Chain Calculator</button>
+        </div>
+
+        <!-- Basic Calculator -->
+        <div id="basic-mode" class="calculator-section active">
+            <div class="basic-calculator">
+                <div class="input-group">
+                    <label for="left-operand">First Number:</label>
+                    <input type="number" id="left-operand" step="any" placeholder="Enter first number">
+                </div>
+                
+                <div class="operation-buttons">
+                    <button class="op-btn" onclick="selectOperation('add')">+</button>
+                    <button class="op-btn" onclick="selectOperation('subtract')">−</button>
+                    <button class="op-btn" onclick="selectOperation('multiply')">×</button>
+                    <button class="op-btn" onclick="selectOperation('divide')">÷</button>
+                    <button class="op-btn" onclick="selectOperation('power')">^</button>
+                </div>
+                
+                <div class="input-group">
+                    <label for="right-operand">Second Number:</label>
+                    <input type="number" id="right-operand" step="any" placeholder="Enter second number">
+                </div>
+                
+                <button class="calculate-btn" onclick="calculate()">Calculate</button>
+            </div>
+        </div>
+
+        <!-- Chain Calculator -->
+        <div id="chain-mode" class="calculator-section">
+            <div class="chain-calculator">
+                <div class="input-group">
+                    <label for="initial-value">Starting Value:</label>
+                    <input type="number" id="initial-value" step="any" placeholder="Enter starting value" value="0">
+                </div>
+                
+                <div id="chain-operations">
+                    <!-- Chain operations will be added here dynamically -->
+                </div>
+                
+                <div class="chain-controls">
+                    <button class="add-operation" onclick="addChainOperation()">+ Add Operation</button>
+                    <button class="clear-chain" onclick="clearChain()">Clear All</button>
+                    <button class="calculate-btn" onclick="calculateChain()">Calculate Chain</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="result" class="result">
+            Ready to calculate! Choose your numbers and operation above.
+        </div>
+    </div>
+
+    <script>
+        let selectedOperation = null;
+        let operationCount = 0;
+
+        function switchMode(mode) {
+            // Update mode buttons
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update calculator sections
+            document.querySelectorAll('.calculator-section').forEach(section => section.classList.remove('active'));
+            document.getElementById(mode + '-mode').classList.add('active');
+            
+            // Clear result
+            document.getElementById('result').innerHTML = 'Ready to calculate!';
+            document.getElementById('result').className = 'result';
+        }
+
+        function selectOperation(operation) {
+            selectedOperation = operation;
+            document.querySelectorAll('.op-btn').forEach(btn => btn.classList.remove('selected'));
+            event.target.classList.add('selected');
+        }
+
+        async function calculate() {
+            if (!selectedOperation) {
+                showResult('Please select an operation first.', true);
+                return;
+            }
+
+            const left = parseFloat(document.getElementById('left-operand').value);
+            const right = parseFloat(document.getElementById('right-operand').value);
+
+            if (isNaN(left) || isNaN(right)) {
+                showResult('Please enter valid numbers.', true);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        operation: selectedOperation,
+                        left: left,
+                        right: right
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult(`${left} ${getOperationSymbol(selectedOperation)} ${right} = ${data.result}`, false);
+                } else {
+                    showResult(`Error: ${data.error}`, true);
+                }
+            } catch (error) {
+                showResult('Error: Could not connect to server.', true);
+            }
+        }
+
+        function getOperationSymbol(operation) {
+            const symbols = {
+                'add': '+',
+                'subtract': '−',
+                'multiply': '×',
+                'divide': '÷',
+                'power': '^'
+            };
+            return symbols[operation] || operation;
+        }
+
+        function showResult(message, isError) {
+            const resultElement = document.getElementById('result');
+            resultElement.innerHTML = message;
+            resultElement.className = isError ? 'result error' : 'result';
+        }
+
+        function addChainOperation() {
+            operationCount++;
+            const container = document.getElementById('chain-operations');
+            const operationDiv = document.createElement('div');
+            operationDiv.className = 'chain-operation';
+            operationDiv.id = `operation-${operationCount}`;
+            
+            operationDiv.innerHTML = `
+                <select onchange="updateChainOperation(${operationCount})">
+                    <option value="add">+ Add</option>
+                    <option value="subtract">− Subtract</option>
+                    <option value="multiply">× Multiply</option>
+                    <option value="divide">÷ Divide</option>
+                    <option value="power">^ Power</option>
+                </select>
+                <input type="number" step="any" placeholder="Enter value" />
+                <button class="remove-operation" onclick="removeChainOperation(${operationCount})">Remove</button>
+            `;
+            
+            container.appendChild(operationDiv);
+        }
+
+        function removeChainOperation(id) {
+            const element = document.getElementById(`operation-${id}`);
+            if (element) {
+                element.remove();
+            }
+        }
+
+        function clearChain() {
+            document.getElementById('chain-operations').innerHTML = '';
+            document.getElementById('initial-value').value = '0';
+            operationCount = 0;
+            showResult('Chain cleared. Ready to calculate!', false);
+        }
+
+        async function calculateChain() {
+            const initialValue = parseFloat(document.getElementById('initial-value').value);
+            
+            if (isNaN(initialValue)) {
+                showResult('Please enter a valid starting value.', true);
+                return;
+            }
+
+            const operations = [];
+            const operationElements = document.querySelectorAll('.chain-operation');
+            
+            for (let element of operationElements) {
+                const select = element.querySelector('select');
+                const input = element.querySelector('input');
+                const value = parseFloat(input.value);
+                
+                if (isNaN(value)) {
+                    showResult('Please enter valid numbers for all operations.', true);
+                    return;
+                }
+                
+                operations.push({
+                    operation: select.value,
+                    value: value
+                });
+            }
+
+            if (operations.length === 0) {
+                showResult(`Starting value: ${initialValue}`, false);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/chain', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        initial: initialValue,
+                        operations: operations
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let chainDescription = `${initialValue}`;
+                    operations.forEach(op => {
+                        chainDescription += ` ${getOperationSymbol(op.operation)} ${op.value}`;
+                    });
+                    chainDescription += ` = ${data.result}`;
+                    showResult(chainDescription, false);
+                } else {
+                    showResult(`Error: ${data.error}`, true);
+                }
+            } catch (error) {
+                showResult('Error: Could not connect to server.', true);
+            }
+        }
+
+        // Add initial chain operation
+        addChainOperation();
+    </script>
+</body>
+</html>
