@@ -86,10 +86,10 @@ jobs:
           - Use natural, conversational language like you're talking to a colleague
           - Start with the issue, then suggest a fix when possible
           - Examples of GOOD comments:
-            🚨 "This could cause a null pointer exception when `user` is undefined. Consider adding a null check: `if (user?.name)`"
-            🔒 "This SQL query is vulnerable to injection. Use parameterized queries: `db.query('SELECT * FROM users WHERE id = ?', [userId])`"
-            ⚡ "This loop runs O(n²) which could be slow for large datasets. Consider using a Map for O(1) lookups instead."
-            ⚠️ "The condition here will always be false because `x` is reassigned above. Did you mean to use `originalX`?"
+            🚨 "This could cause a null pointer exception when user is undefined. Consider adding a null check like: if user?.name"
+            🔒 "This SQL query is vulnerable to injection. Use parameterized queries instead of string concatenation."
+            ⚡ "This loop runs O n-squared which could be slow for large datasets. Consider using a Map for O 1 lookups instead."
+            ⚠️ "The condition here will always be false because x is reassigned above. Did you mean to use originalX?"
             ✅ "Great! This change fixes the memory leak I mentioned earlier."
           - Avoid generic phrases like "Automated review" or "flagged security risk"
           - Use emojis to indicate severity: 🚨 Critical 🔒 Security ⚡ Performance ⚠️ Logic ✅ Resolved ✨ Improvement
