@@ -28,4 +28,6 @@ Workflows handle repository maintenance automatically:
 ```bash
 uv sync && uv run pytest
 python -c "from cursor_cli_examples import add; print(add(2, 3))"
+python -c "from cursor_cli_examples import Chain; print(Chain(10).add(5).multiply(2).subtract(3).value())"
+python -c "from cursor_cli_examples import pipe; print(pipe(10, lambda x: x + 5, lambda x: x * 2, lambda x: x - 3))"
 ```
