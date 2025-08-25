@@ -1,4 +1,4 @@
-name: Auto Fix Conflicts
+name: Fix Conflicts
 
 on:
   pull_request:
