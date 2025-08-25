@@ -34,6 +34,7 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MODEL: gpt-5
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BLOCKING_REVIEW: ${{ vars.BLOCKING_REVIEW || 'false' }}
         run: |
           cursor-agent -p "You are operating in a GitHub Actions runner performing automated code review.
 
@@ -44,6 +45,7 @@ jobs:
           - PR Number: ${{ github.event.pull_request.number }}
           - PR Head SHA: ${{ github.event.pull_request.head.sha }}
           - PR Base SHA: ${{ github.event.pull_request.base.sha }}
+          - Blocking Review: ${{ env.BLOCKING_REVIEW }}
 
           # Goal:
           - Check if existing PR comments have been resolved by the new changes
@@ -68,25 +70,30 @@ jobs:
              - Missing error handling for critical operations
              - Clear logic errors with obvious incorrect behavior
              - Definitive security vulnerabilities
-          5) For each CONFIRMED issue, create a review comment using:
-             `gh pr review --comment-body \"[EMOJI] [1-2 sentence description]\" --file \"[FILENAME]\" --line [LINE_NUMBER]`
-          6) Only comment on lines that were actually changed in the PR (added or modified lines)
-          7) Be EXTREMELY conservative - only flag issues you are 95%+ confident about
-          8) Skip minor style issues, subjective preferences, and "could be better" suggestions
-          9) If no HIGH-CONFIDENCE issues are found and no existing comments need resolution updates, do not leave any comments
+          5) SINGLE REVIEW APPROACH: Collect ALL issues first, then submit ONE comprehensive review at the end
+          6) For each CONFIRMED issue, prepare a review comment with:
+             - File path and line number
+             - Clear, helpful description (see Comment Format below)
+             - Specific suggestions when possible
+          7) Only comment on lines that were actually changed in the PR (added or modified lines)
+          8) Be EXTREMELY conservative - only flag issues you are 95%+ confident about
+          9) Skip minor style issues, subjective preferences, and "could be better" suggestions
           10) Group related issues in the same comment when they occur on adjacent lines
+          11) Submit ALL comments as a SINGLE review using: `gh pr review --request-changes` (if critical issues found) or `gh pr review --comment` (for non-critical issues)
+          12) BLOCKING BEHAVIOR: If Blocking Review is 'true' and you find ANY critical issues (🚨 or 🔒), set environment variable: `echo "CRITICAL_ISSUES_FOUND=true" >> $GITHUB_ENV`. If no critical issues or Blocking Review is 'false', set: `echo "CRITICAL_ISSUES_FOUND=false" >> $GITHUB_ENV`.
 
-          # Comment Format (KEEP VERY SHORT):
-          - Use emojis to indicate severity:
-            🚨 Critical bugs that will cause crashes/failures
-            🔒 Security vulnerabilities 
-            ⚡ Performance issues with measurable impact
-            ⚠️  Clear logic errors or incorrect behavior
-            ✅ Issue resolved by recent changes
-            ✨ Minor improvements (use sparingly, only for obvious wins)
-          - Maximum 1-2 sentences per comment
-          - Be direct and specific
-          - Suggest fix in same breath if obvious
+          # Comment Format (Natural & Helpful):
+          - Use natural, conversational language like you're talking to a colleague
+          - Start with the issue, then suggest a fix when possible
+          - Examples of GOOD comments:
+            🚨 "This could cause a null pointer exception when `user` is undefined. Consider adding a null check: `if (user?.name)`"
+            🔒 "This SQL query is vulnerable to injection. Use parameterized queries: `db.query('SELECT * FROM users WHERE id = ?', [userId])`"
+            ⚡ "This loop runs O(n²) which could be slow for large datasets. Consider using a Map for O(1) lookups instead."
+            ⚠️ "The condition here will always be false because `x` is reassigned above. Did you mean to use `originalX`?"
+            ✅ "Great! This change fixes the memory leak I mentioned earlier."
+          - Avoid generic phrases like "Automated review" or "flagged security risk"
+          - Use emojis to indicate severity: 🚨 Critical 🔒 Security ⚡ Performance ⚠️ Logic ✅ Resolved ✨ Improvement
+          - Be specific about the exact problem and provide actionable suggestions
 
           # Inputs and conventions:
           - Use `gh pr view`, `gh pr diff`, and `gh api` commands to gather PR information
@@ -95,10 +102,31 @@ jobs:
           - Avoid false positives - only flag clear issues
           - Check if previous reviews exist to avoid duplicate comments
           - When commenting on resolved issues, reply to the original comment thread when possible
+          - IMPORTANT: Submit only ONE review per workflow run - collect all comments and submit them together
           - Use `gh pr review --approve` with no comments if no issues are found and no comments need resolution updates
+          - Use `gh pr review --request-changes` if any critical issues (🚨 or 🔒) are found
+          - Use `gh pr review --comment` for non-critical issues (⚡ ⚠️ ✨)
+          - If Blocking Review is enabled and critical issues are found, set: `echo "CRITICAL_ISSUES_FOUND=true" >> $GITHUB_ENV`
+          - Track critical issues found and set the CRITICAL_ISSUES_FOUND environment variable accordingly based on the Blocking Review setting
+          - DO NOT use individual `gh pr review --comment-body` commands - batch everything into one review
+          - ALWAYS set CRITICAL_ISSUES_FOUND environment variable at the end (true if critical issues found, false otherwise)
 
           # Rate limiting and best practices:
-          - Limit to maximum 10 comments per PR to avoid spam
+          - Limit to maximum 10 line comments per review to avoid spam
           - Focus on the most critical issues first
-          - Use batch review comments when possible rather than individual line comments
+          - Always submit as a single comprehensive review, never multiple separate reviews
+          - If more than 10 issues are found, prioritize the most critical ones
           " --force --model "$MODEL" --output-format=text
+
+      - name: Check blocking review results
+        if: env.BLOCKING_REVIEW == 'true'
+        run: |
+          echo "Checking for critical issues..."
+          echo "CRITICAL_ISSUES_FOUND: ${CRITICAL_ISSUES_FOUND:-unset}"
+
+          if [ "${CRITICAL_ISSUES_FOUND:-false}" = "true" ]; then
+            echo "❌ Critical issues found and blocking review is enabled. Failing the workflow."
+            exit 1
+          else
+            echo "✅ No blocking issues found."
+          fi
