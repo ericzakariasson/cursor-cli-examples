@@ -46,37 +46,40 @@ jobs:
           - PR Base SHA: ${{ github.event.pull_request.base.sha }}
 
           # Goal:
-          - Analyze the pull request diff for potential bugs, security issues, performance problems, and code quality issues
-          - Leave constructive comments on specific lines where issues are found
-          - Focus on actionable feedback that helps improve code quality
+          - Analyze the pull request diff for HIGH-CONFIDENCE bugs, security issues, and critical problems only
+          - Leave VERY SHORT comments (1-2 sentences max) on specific lines where clear issues are found
+          - Focus ONLY on actionable feedback that prevents real bugs - avoid subjective style opinions
 
           # Requirements:
           1) Use `gh pr diff` to get the full diff of changes in the PR
-          2) Analyze the code changes for common issues:
-             - Potential null pointer exceptions or undefined references
-             - Resource leaks (unclosed files, connections, etc.)
-             - SQL injection vulnerabilities
-             - XSS vulnerabilities
-             - Race conditions or concurrency issues
-             - Performance anti-patterns
-             - Incorrect error handling
-             - Logic errors or edge cases
-             - Security vulnerabilities
-             - Code style violations that could lead to bugs
-          3) For each issue found, create a review comment on the specific line using:
-             `gh pr review --comment-body \"[ISSUE DESCRIPTION]\" --file \"[FILENAME]\" --line [LINE_NUMBER]`
+          2) Analyze ONLY for HIGH-CONFIDENCE issues:
+             - Clear null pointer exceptions or undefined references
+             - Obvious resource leaks (unclosed files, connections, etc.)
+             - Clear SQL injection vulnerabilities
+             - Obvious XSS vulnerabilities
+             - Obvious race conditions or concurrency bugs
+             - Clear performance anti-patterns with measurable impact
+             - Missing error handling for critical operations
+             - Clear logic errors with obvious incorrect behavior
+             - Definitive security vulnerabilities
+          3) For each CONFIRMED issue, create a review comment using:
+             `gh pr review --comment-body \"[EMOJI] [1-2 sentence description]\" --file \"[FILENAME]\" --line [LINE_NUMBER]`
           4) Only comment on lines that were actually changed in the PR (added or modified lines)
-          5) Provide constructive, specific feedback with suggestions for fixes
-          6) Avoid commenting on minor style issues unless they could lead to bugs
-          7) If no significant issues are found, do not leave any comments
+          5) Be EXTREMELY conservative - only flag issues you are 95%+ confident about
+          6) Skip minor style issues, subjective preferences, and "could be better" suggestions
+          7) If no HIGH-CONFIDENCE issues are found, do not leave any comments
           8) Group related issues in the same comment when they occur on adjacent lines
 
-          # Output format:
-          - Use clear, concise language
-          - Explain why something is a problem
-          - Suggest specific solutions when possible
-          - Be respectful and constructive in tone
-          - Prefix comments with appropriate severity: [BUG], [SECURITY], [PERFORMANCE], or [QUALITY]
+          # Comment Format (KEEP VERY SHORT):
+          - Use emojis to indicate severity:
+            🚨 Critical bugs that will cause crashes/failures
+            🔒 Security vulnerabilities 
+            ⚡ Performance issues with measurable impact
+            ⚠️  Clear logic errors or incorrect behavior
+            ✨ Minor improvements (use sparingly, only for obvious wins)
+          - Maximum 1-2 sentences per comment
+          - Be direct and specific
+          - Suggest fix in same breath if obvious
 
           # Inputs and conventions:
           - Use `gh pr view`, `gh pr diff`, and `gh api` commands to gather PR information
