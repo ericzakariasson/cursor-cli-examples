@@ -46,13 +46,19 @@ jobs:
           - PR Base SHA: ${{ github.event.pull_request.base.sha }}
 
           # Goal:
+          - Check if existing PR comments have been resolved by the new changes
           - Analyze the pull request diff for HIGH-CONFIDENCE bugs, security issues, and critical problems only
           - Leave VERY SHORT comments (1-2 sentences max) on specific lines where clear issues are found
           - Focus ONLY on actionable feedback that prevents real bugs - avoid subjective style opinions
 
           # Requirements:
-          1) Use `gh pr diff` to get the full diff of changes in the PR
-          2) Analyze ONLY for HIGH-CONFIDENCE issues:
+          1) First, check for existing PR comments using `gh pr view --json comments` to see if there are unresolved review comments
+          2) Use `gh pr diff` to get the full diff of changes in the PR
+          3) For each existing comment, analyze if the new changes in the diff address the issue mentioned:
+             - If a comment mentioned a bug/issue on a specific line and that line or surrounding code has been modified to fix the issue, consider it potentially resolved
+             - Add a follow-up comment like "✅ This issue appears to be resolved by the recent changes" if confident the fix addresses the concern
+             - Use `gh pr review --comment-body` to add resolution comments
+          4) Analyze ONLY for HIGH-CONFIDENCE issues:
              - Clear null pointer exceptions or undefined references
              - Obvious resource leaks (unclosed files, connections, etc.)
              - Clear SQL injection vulnerabilities
@@ -62,13 +68,13 @@ jobs:
              - Missing error handling for critical operations
              - Clear logic errors with obvious incorrect behavior
              - Definitive security vulnerabilities
-          3) For each CONFIRMED issue, create a review comment using:
+          5) For each CONFIRMED issue, create a review comment using:
              `gh pr review --comment-body \"[EMOJI] [1-2 sentence description]\" --file \"[FILENAME]\" --line [LINE_NUMBER]`
-          4) Only comment on lines that were actually changed in the PR (added or modified lines)
-          5) Be EXTREMELY conservative - only flag issues you are 95%+ confident about
-          6) Skip minor style issues, subjective preferences, and "could be better" suggestions
-          7) If no HIGH-CONFIDENCE issues are found, do not leave any comments
-          8) Group related issues in the same comment when they occur on adjacent lines
+          6) Only comment on lines that were actually changed in the PR (added or modified lines)
+          7) Be EXTREMELY conservative - only flag issues you are 95%+ confident about
+          8) Skip minor style issues, subjective preferences, and "could be better" suggestions
+          9) If no HIGH-CONFIDENCE issues are found and no existing comments need resolution updates, do not leave any comments
+          10) Group related issues in the same comment when they occur on adjacent lines
 
           # Comment Format (KEEP VERY SHORT):
           - Use emojis to indicate severity:
@@ -76,6 +82,7 @@ jobs:
             🔒 Security vulnerabilities 
             ⚡ Performance issues with measurable impact
             ⚠️  Clear logic errors or incorrect behavior
+            ✅ Issue resolved by recent changes
             ✨ Minor improvements (use sparingly, only for obvious wins)
           - Maximum 1-2 sentences per comment
           - Be direct and specific
@@ -83,10 +90,12 @@ jobs:
 
           # Inputs and conventions:
           - Use `gh pr view`, `gh pr diff`, and `gh api` commands to gather PR information
+          - Use `gh pr view --json comments` to check existing review comments for resolution status
           - Focus on substantive issues that could cause real problems
           - Avoid false positives - only flag clear issues
           - Check if previous reviews exist to avoid duplicate comments
-          - Use `gh pr review --approve` with no comments if no issues are found
+          - When commenting on resolved issues, reply to the original comment thread when possible
+          - Use `gh pr review --approve` with no comments if no issues are found and no comments need resolution updates
 
           # Rate limiting and best practices:
           - Limit to maximum 10 comments per PR to avoid spam
