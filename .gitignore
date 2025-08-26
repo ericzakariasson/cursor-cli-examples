@@ -74,7 +74,6 @@ pyrightconfig.json
 logs/
 
 # Project-specific
-.cursor/
 .coverage
 
 

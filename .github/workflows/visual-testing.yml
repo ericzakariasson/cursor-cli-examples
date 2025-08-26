@@ -6,7 +6,8 @@ on:
 
 permissions:
   pull-requests: write
-  contents: read
+  contents: write
+  issues: write
 
 jobs:
   visual-testing:
@@ -23,7 +24,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
-          enable-cache: true
+          enable-cache: false
 
       - name: Set up Python
         run: uv python install
@@ -79,7 +80,7 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cursor-agent -p 'You are in a GitHub Actions runner with Playwright MCP tools. Perform lean visual testing and post one concise PR comment.
+          cursor-agent -p 'You are in a GitHub Actions runner with Playwright MCP tools. Perform lean visual testing; do not post any PR comments. Output findings to stdout only.
 
           Context:
           - Repo: ${{ github.repository }}
@@ -91,14 +92,14 @@ jobs:
           Objectives:
           1) Check if web-facing files changed (templates: *.html; styles: *.css/*.scss; scripts: *.js/*.ts/*.jsx/*.tsx; python web: app.py/views/routes) using gh.
           2) Capture screenshots via MCP: navigate → snapshot → take_screenshot. Save all images into ./screenshots using names like screenshots/homepage-after-changes.png, screenshots/calculator-basic-mode.png, screenshots/calculator-with-result.png. The workflow will upload ./screenshots as an artifact.
-          3) Comment once with: brief changed-files list (or none), embedded screenshots, and 2-4 bullets on visual impact.
+          3) Do not create PR comments. Another step will post screenshots only (no analysis).
 
           Rules:
           - Do not start the server
           - Use only MCP Playwright tools for the browser
           - Save screenshots only under ./screenshots (create subfolders if needed)
-          - In the PR comment, list filenames rather than embedding images; they are uploaded as artifacts
-          - If no relevant changes: comment "No visual changes detected"
+          - Do not create any PR comments
+          - If no relevant changes: print "No visual changes detected" to stdout
           ' --force --model sonnet-4 --output-format=text
 
       - name: Cleanup
@@ -114,6 +115,24 @@ jobs:
           name: visual-testing-screenshots-${{ github.event.pull_request.number }}
           path: screenshots/
           retention-days: 30
+
+      - name: Comment on PR with list of uploaded screenshots
+        if: github.event.pull_request.head.repo.fork == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          : > pr_body.md
+          if ls screenshots/**/*.png screenshots/*.png >/dev/null 2>&1; then
+            echo "Uploaded visual testing screenshots:" >> pr_body.md
+            echo "" >> pr_body.md
+            find screenshots -type f -name '*.png' | sort | while read -r file; do
+              echo "- ${file}" >> pr_body.md
+            done
+            gh pr comment ${{ github.event.pull_request.number }} --body-file pr_body.md
+          else
+            echo "No screenshots found; skipping comment."
+          fi
 
       - name: Cleanup processes
         if: always()

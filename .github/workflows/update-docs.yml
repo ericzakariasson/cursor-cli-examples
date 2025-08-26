@@ -44,8 +44,8 @@ jobs:
           - Repo: ${{ github.repository }}
           - Owner: ${{ github.repository_owner }}
           - PR Number: ${{ github.event.pull_request.number }}
-          - Base Ref: ${{ github.base_ref }}
-          - Head Ref: ${{ github.head_ref }}
+          - Base Ref: ${{ github.event.pull_request.base.ref }}
+          - Head Ref: ${{ github.event.pull_request.head.ref }}
           - Docs Branch Prefix: ${{ env.BRANCH_PREFIX }}
 
           # Goal:
@@ -59,7 +59,7 @@ jobs:
 
           # Inputs and conventions:
           - Use `gh pr diff` and git history to detect changes and derive incremental ranges since the last docs update.
-          - Do not attempt to create or edit PRs directly. Use the compare link format: https://github.com/${{ github.repository }}/compare/${{ github.base_ref }}...docs/${{ github.head_ref }}
+          - Do not attempt to create or edit PRs directly. Use the compare link format: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.ref }}...docs/${{ github.event.pull_request.head.ref }}
           - Keep changes minimal and consistent with repo style. If no doc updates are necessary, make no changes and post no comment.
 
           # Deliverables when updates occur:
