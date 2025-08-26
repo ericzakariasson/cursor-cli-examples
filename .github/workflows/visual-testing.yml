@@ -1,0 +1,123 @@
+name: Visual Testing
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  visual-testing:
+    runs-on: ubuntu-latest
+    # Skip visual testing for draft PRs
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Install Chrome for Playwright MCP
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Visual Testing Bot"
+          git config user.email "visual-testing@cursor.com"
+
+      - name: Start web server
+        run: |
+          uv run web &
+
+          # Wait for server to be ready
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if lsof -ti:5001 > /dev/null 2>&1; then
+              echo "✅ Server is running on port 5001"
+              break
+            fi
+            sleep 1
+            if [[ $i -eq 30 ]]; then
+              echo "❌ Server failed to start"
+              exit 1
+            fi
+          done
+
+          # Give server extra time to fully initialize
+          sleep 3
+          echo "🚀 Web server is ready at http://localhost:5001"
+
+      - name: Prepare screenshots directory
+        run: |
+          mkdir -p screenshots
+
+      - name: Run visual testing with Cursor Agent
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cursor-agent -p 'You are in a GitHub Actions runner with Playwright MCP tools. Perform lean visual testing and post one concise PR comment.
+
+          Context:
+          - Repo: ${{ github.repository }}
+          - PR: ${{ github.event.pull_request.number }}
+          - Head: ${{ github.event.pull_request.head.sha }}
+          - Base: ${{ github.event.pull_request.base.sha }}
+          - Server: http://localhost:5001 (already running)
+
+          Objectives:
+          1) Check if web-facing files changed (templates: *.html; styles: *.css/*.scss; scripts: *.js/*.ts/*.jsx/*.tsx; python web: app.py/views/routes) using gh.
+          2) Capture screenshots via MCP: navigate → snapshot → take_screenshot. Save all images into ./screenshots using names like screenshots/homepage-after-changes.png, screenshots/calculator-basic-mode.png, screenshots/calculator-with-result.png. The workflow will upload ./screenshots as an artifact.
+          3) Comment once with: brief changed-files list (or none), embedded screenshots, and 2-4 bullets on visual impact.
+
+          Rules:
+          - Do not start the server
+          - Use only MCP Playwright tools for the browser
+          - Save screenshots only under ./screenshots (create subfolders if needed)
+          - In the PR comment, list filenames rather than embedding images; they are uploaded as artifacts
+          - If no relevant changes: comment "No visual changes detected"
+          ' --force --model sonnet-4 --output-format=text
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Kill the web server
+          pkill -f "python -m cursor_cli_examples.app" || true
+
+      - name: Upload screenshots as artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-testing-screenshots-${{ github.event.pull_request.number }}
+          path: screenshots/
+          retention-days: 30
+
+      - name: Cleanup processes
+        if: always()
+        run: |
+          # Kill any background processes that might still be running
+          pkill -f "python -m cursor_cli_examples.app" || true
+          pkill -f "flask" || true
