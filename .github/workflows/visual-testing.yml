@@ -6,7 +6,8 @@ on:
 
 permissions:
   pull-requests: write
-  contents: read
+  contents: write
+  issues: write
 
 jobs:
   visual-testing:
@@ -79,7 +80,7 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cursor-agent -p 'You are in a GitHub Actions runner with Playwright MCP tools. Perform lean visual testing and post one concise PR comment.
+          cursor-agent -p 'You are in a GitHub Actions runner with Playwright MCP tools. Perform lean visual testing; do not post any PR comments. Output findings to stdout only.
 
           Context:
           - Repo: ${{ github.repository }}
@@ -91,15 +92,63 @@ jobs:
           Objectives:
           1) Check if web-facing files changed (templates: *.html; styles: *.css/*.scss; scripts: *.js/*.ts/*.jsx/*.tsx; python web: app.py/views/routes) using gh.
           2) Capture screenshots via MCP: navigate → snapshot → take_screenshot. Save all images into ./screenshots using names like screenshots/homepage-after-changes.png, screenshots/calculator-basic-mode.png, screenshots/calculator-with-result.png. The workflow will upload ./screenshots as an artifact.
-          3) Comment once with: brief changed-files list (or none), embedded screenshots, and 2-4 bullets on visual impact.
+          3) Do not create PR comments. Another step will post screenshots only (no analysis).
 
           Rules:
           - Do not start the server
           - Use only MCP Playwright tools for the browser
           - Save screenshots only under ./screenshots (create subfolders if needed)
-          - In the PR comment, list filenames rather than embedding images; they are uploaded as artifacts
-          - If no relevant changes: comment "No visual changes detected"
+          - Do not create any PR comments
+          - If no relevant changes: print "No visual changes detected" to stdout
           ' --force --model sonnet-4 --output-format=text
+
+      - name: Commit screenshots to PR branch (same-repo PRs only)
+        if: github.event.pull_request.head.repo.fork == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          git fetch origin "$BRANCH"
+          git checkout "$BRANCH"
+          if ls screenshots/**/*.png screenshots/*.png >/dev/null 2>&1; then
+            mkdir -p .visual-testing/${{ github.run_id }}
+            cp -r screenshots/*.png .visual-testing/${{ github.run_id }}/ 2>/dev/null || true
+            find screenshots -type f -name '*.png' -not -path 'screenshots/*.png' -exec cp {} .visual-testing/${{ github.run_id }}/ \; 2>/dev/null || true
+            if ls .visual-testing/${{ github.run_id }}/*.png >/dev/null 2>&1; then
+              git add .visual-testing/${{ github.run_id }}
+              git commit -m "Add visual testing screenshots for run ${{ github.run_id }}"
+              git push origin "$BRANCH"
+            else
+              echo "No PNG screenshots found under ./screenshots to commit."
+            fi
+          else
+            echo "No screenshots directory or PNG files found; skipping commit."
+          fi
+
+      - name: Comment on PR with inline images from PR branch
+        if: github.event.pull_request.head.repo.fork == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          RAW_BASE="https://raw.githubusercontent.com/${{ github.repository }}/$BRANCH/.visual-testing/${{ github.run_id }}"
+          : > pr_body.md
+          if gh api repos/${{ github.repository }}/git/trees/$BRANCH?recursive=1 -q '.tree[].path' | grep "^\.visual-testing/${{ github.run_id }}/.*\.png$" >/dev/null 2>&1; then
+            gh api repos/${{ github.repository }}/git/trees/$BRANCH?recursive=1 -q '.tree[].path' | grep "^\.visual-testing/${{ github.run_id }}/.*\.png$" | while read -r path; do
+              fname=$(basename "$path")
+              echo "![${fname}](${RAW_BASE}/${fname})" >> pr_body.md
+              echo "" >> pr_body.md
+            done
+            if [ -s pr_body.md ]; then
+              gh pr comment ${{ github.event.pull_request.number }} --body-file pr_body.md
+            else
+              echo "No content to comment with."
+            fi
+          else
+            echo "No screenshots found in PR branch; skipping comment."
+          fi
 
       - name: Cleanup
         if: always()
