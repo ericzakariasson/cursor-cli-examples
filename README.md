@@ -55,4 +55,8 @@ The web UI provides:
 - **Basic Calculator**: Perform simple operations between two numbers
 - **Chain Calculator**: Build complex calculations by chaining multiple operations together
 
+### UI Style
+
+- **Square UI**: Components use straight edges (no rounded corners).
+
 Both calculators use the same underlying arithmetic functions from the main module.
