@@ -102,54 +102,6 @@ jobs:
           - If no relevant changes: print "No visual changes detected" to stdout
           ' --force --model sonnet-4 --output-format=text
 
-      - name: Commit screenshots to PR branch (same-repo PRs only)
-        if: github.event.pull_request.head.repo.fork == false
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          git fetch origin "$BRANCH"
-          git checkout "$BRANCH"
-          if ls screenshots/**/*.png screenshots/*.png >/dev/null 2>&1; then
-            mkdir -p .visual-testing/${{ github.run_id }}
-            cp -r screenshots/*.png .visual-testing/${{ github.run_id }}/ 2>/dev/null || true
-            find screenshots -type f -name '*.png' -not -path 'screenshots/*.png' -exec cp {} .visual-testing/${{ github.run_id }}/ \; 2>/dev/null || true
-            if ls .visual-testing/${{ github.run_id }}/*.png >/dev/null 2>&1; then
-              git add .visual-testing/${{ github.run_id }}
-              git commit -m "Add visual testing screenshots for run ${{ github.run_id }}"
-              git push origin "$BRANCH"
-            else
-              echo "No PNG screenshots found under ./screenshots to commit."
-            fi
-          else
-            echo "No screenshots directory or PNG files found; skipping commit."
-          fi
-
-      - name: Comment on PR with inline images from PR branch
-        if: github.event.pull_request.head.repo.fork == false
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          RAW_BASE="https://raw.githubusercontent.com/${{ github.repository }}/$BRANCH/.visual-testing/${{ github.run_id }}"
-          : > pr_body.md
-          if gh api repos/${{ github.repository }}/git/trees/$BRANCH?recursive=1 -q '.tree[].path' | grep "^\.visual-testing/${{ github.run_id }}/.*\.png$" >/dev/null 2>&1; then
-            gh api repos/${{ github.repository }}/git/trees/$BRANCH?recursive=1 -q '.tree[].path' | grep "^\.visual-testing/${{ github.run_id }}/.*\.png$" | while read -r path; do
-              fname=$(basename "$path")
-              echo "![${fname}](${RAW_BASE}/${fname})" >> pr_body.md
-              echo "" >> pr_body.md
-            done
-            if [ -s pr_body.md ]; then
-              gh pr comment ${{ github.event.pull_request.number }} --body-file pr_body.md
-            else
-              echo "No content to comment with."
-            fi
-          else
-            echo "No screenshots found in PR branch; skipping comment."
-          fi
-
       - name: Cleanup
         if: always()
         run: |
@@ -163,6 +115,24 @@ jobs:
           name: visual-testing-screenshots-${{ github.event.pull_request.number }}
           path: screenshots/
           retention-days: 30
+
+      - name: Comment on PR with list of uploaded screenshots
+        if: github.event.pull_request.head.repo.fork == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          : > pr_body.md
+          if ls screenshots/**/*.png screenshots/*.png >/dev/null 2>&1; then
+            echo "Uploaded visual testing screenshots:" >> pr_body.md
+            echo "" >> pr_body.md
+            find screenshots -type f -name '*.png' | sort | while read -r file; do
+              echo "- ${file}" >> pr_body.md
+            done
+            gh pr comment ${{ github.event.pull_request.number }} --body-file pr_body.md
+          else
+            echo "No screenshots found; skipping comment."
+          fi
 
       - name: Cleanup processes
         if: always()
