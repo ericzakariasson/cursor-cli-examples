@@ -14,11 +14,11 @@ Details of proposed edits:
 - `.github/workflows/test.yml`: pin `actions/checkout` and `actions/setup-python`; add `permissions: contents: read`; set `persist-credentials: false`.
 - `.github/workflows/code-review.yml`: pin `actions/checkout` and `astral-sh/setup-uv`; add fork guard; set `persist-credentials: false`.
 - `.github/workflows/visual-testing.yml`: pin `actions/checkout`, `astral-sh/setup-uv`, and `actions/upload-artifact`; add fork guard; set `persist-credentials: false`; modernize Chrome apt install.
-- `.github/workflows/fix-ci.yml`: pin `actions/checkout`; set `persist-credentials: false`.
-- `.github/workflows/fix-conflicts.yml`: pin `actions/checkout`; set `persist-credentials: false`.
+- `.github/workflows/fix-ci.yml`: pin `actions/checkout`.
+- `.github/workflows/fix-conflicts.yml`: pin `actions/checkout`.
 - `.github/workflows/improve-pr-description.yml`: pin `actions/checkout`; add fork guard; set `persist-credentials: false`.
-- `.github/workflows/update-docs.yml`: pin `actions/checkout`; set `persist-credentials: false`.
-- `.github/workflows/translate-keys.yml`: pin `actions/checkout`; set `persist-credentials: false`.
+- `.github/workflows/update-docs.yml`: pin `actions/checkout`.
+- `.github/workflows/translate-keys.yml`: pin `actions/checkout`.
 - `.github/workflows/secrets-audit.yml`: pin `actions/checkout`; fix minor indentation and spacing.
 
 Secret exposure scan:
