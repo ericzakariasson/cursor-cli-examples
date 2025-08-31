@@ -1,5 +1,22 @@
 # Security Hardening Log
 
+Date: 2025-08-31
+Branch: audit
+
+Summary
+- Performed scheduled secrets and workflow hardening audit.
+- No high-confidence secrets found in tracked files or last 200 commits.
+- Proposed minimal fixes: pin actions to SHAs, tighten permissions, add fork guards, replace deprecated apt-key flow.
+
+Recommended minimal fixes (maintainer action required)
+- Pin actions to SHAs: actions/checkout, actions/setup-python, astral-sh/setup-uv, actions/upload-artifact.
+- Ensure least-privilege permissions; default to contents: read for test-only jobs.
+- Add fork guards before any write (contents/pull-requests) on PR-triggered jobs.
+- Replace apt-key with keyring-based apt source setup for Chrome installation.
+
+Notes
+- Workflow edits could not be pushed from this context due to missing workflows permission on the token; please create a PR from `audit` reflecting these updates.
+
 Date: 2025-08-29
 Branch: audit
 
