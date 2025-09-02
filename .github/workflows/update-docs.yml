@@ -1,4 +1,4 @@
-name: Auto Update Docs
+name: Update Docs
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  auto-docs:
+  docs:
     if: ${{ !startsWith(github.head_ref, 'docs/') }}
     runs-on: ubuntu-latest
     steps:
@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install Cursor CLI
         run: |
@@ -54,11 +55,11 @@ jobs:
           1) Determine what changed in the original PR and, if there have been multiple pushes, compute the incremental diffs since the last successful docs update.
           2) Update only the relevant docs based on those incremental changes.
           3) Maintain the persistent docs branch for this PR head using the Docs Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
-          4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the docs updates and includes an inline compare link to quick-create a PR
+          4) You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the docs updates and includes an inline compare link to quick-create a PR. The compare link MUST use the Base Ref (not main) as the base branch for the comparison.
 
           # Inputs and conventions:
           - Use `gh pr diff` and git history to detect changes and derive incremental ranges since the last docs update.
-          - Do not attempt to create or edit PRs directly. Use the compare link format above.
+          - Do not attempt to create or edit PRs directly. Use the compare link format: https://github.com/${{ github.repository }}/compare/${{ github.base_ref }}...docs/${{ github.head_ref }}
           - Keep changes minimal and consistent with repo style. If no doc updates are necessary, make no changes and post no comment.
 
           # Deliverables when updates occur:

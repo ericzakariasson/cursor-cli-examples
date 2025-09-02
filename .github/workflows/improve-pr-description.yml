@@ -1,8 +1,7 @@
-name: Auto Improve PR Description
+name: Improve PR Description
 
 on:
-  pull_request:
-    types: [opened, edited, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
@@ -16,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install Cursor CLI
         run: |
@@ -39,7 +39,7 @@ jobs:
 
           # Context:
           - Repo: ${{ github.repository }}
-          - PR Number: ${{ github.event.pull_request.number }}
+          - PR Number: ${{ github.event.pull_request.number || 'auto-detect' }}
 
           # Goal:
           - Maintain a generated block within the PR body based on the diff and metadata, without overwriting author content outside of that block.

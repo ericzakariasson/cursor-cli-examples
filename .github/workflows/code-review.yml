@@ -1,0 +1,108 @@
+name: Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    # Skip automated code review for draft PRs
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+
+      - name: Perform automated code review
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BLOCKING_REVIEW: ${{ vars.BLOCKING_REVIEW || 'false' }}
+        run: |
+          cursor-agent -p 'You are operating in a GitHub Actions runner performing automated code review. The gh CLI is available and authenticated via GH_TOKEN. You may comment on pull requests.
+
+          Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ github.event.pull_request.number }}
+          - PR Head SHA: ${{ github.event.pull_request.head.sha }}
+          - PR Base SHA: ${{ github.event.pull_request.base.sha }}
+          - Blocking Review: ${{ env.BLOCKING_REVIEW }}
+
+          Objectives:
+          1) Re-check existing review comments and reply resolved when addressed.
+          2) Review the current PR diff and flag only clear, high-severity issues.
+          3) Leave very short inline comments (1-2 sentences) on changed lines only and a brief summary at the end.
+
+          Procedure:
+          - Get existing comments: gh pr view --json comments
+          - Get diff: gh pr diff
+          - If a previously reported issue appears fixed by nearby changes, reply: ✅ This issue appears to be resolved by the recent changes
+          - Analyze ONLY for:
+            - Null/undefined dereferences
+            - Resource leaks (unclosed files or connections)
+            - Injection (SQL/XSS)
+            - Concurrency/race conditions
+            - Missing error handling for critical operations
+            - Obvious logic errors with incorrect behavior
+            - Clear performance anti-patterns with measurable impact
+            - Definitive security vulnerabilities
+          - Avoid duplicates: skip if similar feedback already exists on or near the same lines.
+
+          Commenting rules:
+          - Max 10 inline comments total; prioritize the most critical issues
+          - One issue per comment; place on the exact changed line
+          - Natural tone, specific and actionable; do not mention automated or high-confidence
+          - Use emojis: 🚨 Critical 🔒 Security ⚡ Performance ⚠️ Logic ✅ Resolved ✨ Improvement
+
+          Submission:
+          - Submit one review containing inline comments plus a concise summary
+          - Use only: gh pr review --comment
+          - Do not use: gh pr review --approve or --request-changes
+
+          Blocking behavior:
+          - If BLOCKING_REVIEW is true and any 🚨 or 🔒 issues were posted: echo "CRITICAL_ISSUES_FOUND=true" >> $GITHUB_ENV
+          - Otherwise: echo "CRITICAL_ISSUES_FOUND=false" >> $GITHUB_ENV
+          - Always set CRITICAL_ISSUES_FOUND at the end
+          ' --force --model "$MODEL" --output-format=text
+
+      - name: Check blocking review results
+        if: env.BLOCKING_REVIEW == 'true'
+        run: |
+          echo "Checking for critical issues..."
+          echo "CRITICAL_ISSUES_FOUND: ${CRITICAL_ISSUES_FOUND:-unset}"
+
+          if [ "${CRITICAL_ISSUES_FOUND:-false}" = "true" ]; then
+            echo "❌ Critical issues found and blocking review is enabled. Failing the workflow."
+            exit 1
+          else
+            echo "✅ No blocking issues found."
+          fi

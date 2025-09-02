@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+You can spawn subagents by running `cursor-agent -p [task] --output-format=text --force --model [model]` in the terminal. Use subagents when isolated tasks can be performed independently. Each subagent should return a summary of the changes it made. Use subagents for
+
+- Researching
+- Planning
+- Refactoring
+- Implementing
+- Testing
+- Debugging
+
+You can adopt a fan-out pattern where you spawn subagents to perform parallel isolated tasks, and then fan-in the results.
+
+Use the following models:
+
+- `--model gpt-5` for reasoning, researching, and planning
+- `--model sonnet-4` for implementation
+- `--model auto` for everything else
