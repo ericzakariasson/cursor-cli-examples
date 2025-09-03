@@ -1,0 +1,67 @@
+name: Fix Conflicts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  rebase:
+    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'needs-rebase' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@cursor.com"
+
+      - name: Attempt conflict fix
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          MODEL: gpt-5
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_PREFIX: conflict-fix
+        run: |
+          cursor-agent -p "You are operating in a GitHub Actions runner.
+
+          The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+
+          # Context:
+          - Repo: ${{ github.repository }}
+          - PR Number: ${{ github.event.pull_request.number }}
+          - Conflict Fix Branch Prefix: ${{ env.BRANCH_PREFIX }}
+
+          # Goal:
+          - When the PR is unmergeable or behind base, attempt a safe rebase/merge and propose a fix branch.
+
+          # Requirements:
+          1) Identify base and head branches and current mergeability from the PR.
+          2) Maintain a persistent fix branch for this PR head using the Conflict Fix Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
+          3) Prefer rebasing the current branch onto the base branch; fall back to `git merge` if rebase is not feasible.
+          4) Resolve only deterministic conflicts (lockfiles, snapshots, generated files) using safe strategies. Do not attempt semantic code merges.
+          5) Optionally run a quick build/test if available.
+          6) Post or update a single natural-language PR comment (1–2 sentences) that briefly explains what was resolved and includes an inline compare link to quick-create a PR.
+          7) Never force-push the contributor branch.
+          8) If no actionable fix is possible, make no changes and post no comment.
+
+          # Inputs and conventions:
+          - Use `gh pr view`, `gh pr diff`, and git history as needed. Avoid duplicate comments; update a previous bot comment if present.
+
+          # Deliverables when updates occur:
+          - Pushed commits to the persistent conflict fix branch for this PR head.
+          - A single natural-language PR comment on the original PR that includes the inline compare link above.
+          " --force --model "$MODEL" --output-format=text
