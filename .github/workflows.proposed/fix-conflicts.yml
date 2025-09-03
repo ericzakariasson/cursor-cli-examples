@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   rebase:
-    if: ${{ github.event.action != 'labeled' || github.event.label.name == 'needs-rebase' }}
+    if: ${{ (github.event.action != 'labeled' || github.event.label.name == 'needs-rebase') && github.event.pull_request.head.repo.fork == false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

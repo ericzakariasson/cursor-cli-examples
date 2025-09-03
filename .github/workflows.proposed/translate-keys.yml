@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   i18n:
-    if: ${{ !startsWith(github.head_ref, 'translate/') }}
+    if: ${{ !startsWith(github.head_ref, 'translate/') && github.event.pull_request.head.repo.fork == false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
