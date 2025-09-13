@@ -1,43 +1,23 @@
-# Security Hardening Log
+# Security Audit Log
 
-## 2025-09-12 — Automated audit
+Date: 2025-09-13
+Branch: audit-hardening
 
-- Branch used: `audit-hardening`
-- No potential secrets found in tracked files or last 100 commits (heuristic patterns).
-- No GitHub Actions workflows detected at time of audit.
+Summary of findings
+- No high-signal secrets found in tracked files or last 200 commits.
+- Workflows use floating action tags; recommend pinning to SHAs.
+- One workflow lacked explicit least-privilege `permissions`; recommend adding `contents: read`.
+- Insecure installer patterns found (`apt-key`, plain curl without TLS flags); recommend safer equivalents.
+- No `pull_request_target` usage detected.
+- No `.gitleaks.toml` found (allowlist not configured).
 
-Recommendations
-- Add a `.gitleaks.toml` to codify allowlists if future scans produce noise.
-- When adding workflows, pin actions to commit SHAs, include least-privilege `permissions`, and avoid `pull_request_target` for untrusted code.
-
-Details
-- Secret scan covered common tokens (AWS, GitHub tokens, Slack, generic private keys) and simple key=value literals.
-- History scan sampled ~100 recent commits for the same patterns.
-- `.github/workflows` directory not present during this run.
-
-## 2025-08-23 — Proposals and findings
-
-- Branch: `audit/hardening`
-
-Summary of minimal changes proposed to improve workflow security and reduce supply-chain risk.
-
-Proposed changes
-- Pin reusable actions to immutable commit SHAs in workflows:
-  - `actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955` (v4)
-  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065` (v5)
-- Add `permissions: contents: read` to `test` workflow to follow least-privilege.
-- Add fork-guard conditions to PR-triggered workflows to avoid running with repo secrets on forked PRs:
-  - `auto-update-docs.yml`, `auto-update-docs-split.yml`, `auto-improve-pr-description.yml`.
-
-Rationale
-- Pinning actions prevents silent supply-chain drift and mitigates takeover risks of action tags.
-- Least-privilege permissions reduce blast radius for default token.
-- Fork guards ensure steps that access `secrets` or write to the repo don't execute for untrusted forks.
-
-Findings
-- No hardcoded secrets found in tracked files or recent history scan (sampled regexes for common providers and tokens).
-- No use of `pull_request_target` events detected.
-- Existing workflows already set explicit `permissions` where writes are needed.
+Proposed minimal hardening
+- Pin actions: `actions/checkout@<sha>`, `actions/setup-python@<sha>`, `astral-sh/setup-uv@<sha>`, `actions/upload-artifact@<sha>`.
+- Add `permissions:` blocks where missing; prefer `contents: read` on CI jobs that only read.
+- Harden installers: `curl --proto '=https' --tlsv1.2 -fsS URL | bash`; replace `apt-key` with keyring + signed-by.
 
 Notes
-- This branch avoids direct workflow edits due to missing `workflows` permission on the automation token. Apply the above edits in a follow-up PR or grant `workflows` permission and re-run.
+- Pushing workflow file edits was skipped due to missing `workflows: write` permission for this run. Apply the above edits manually or re-run with that permission.
+
+Compare link to review this branch:
+- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening
