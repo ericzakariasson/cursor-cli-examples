@@ -1,23 +1,28 @@
-# Security Audit Log
+# Repository Security Hardening Log
 
-Date: 2025-09-13
+Date: 2025-09-14
 Branch: audit-hardening
 
-Summary of findings
-- No high-signal secrets found in tracked files or last 200 commits.
-- Workflows use floating action tags; recommend pinning to SHAs.
-- One workflow lacked explicit least-privilege `permissions`; recommend adding `contents: read`.
-- Insecure installer patterns found (`apt-key`, plain curl without TLS flags); recommend safer equivalents.
-- No `pull_request_target` usage detected.
-- No `.gitleaks.toml` found (allowlist not configured).
+## Summary
+- Proposed scheduled workflow `docs/proposed-security-audit.yml` to run weekly and on-demand. Maintainers must move this file to `.github/workflows/security-audit.yml` due to GitHub App workflow creation restrictions.
+- Harden runner suggestion via `step-security/harden-runner` (egress audit mode).
+- All GitHub Actions pinned to full commit SHAs in the proposal.
+- Least-privilege permissions defined in the proposal.
+- Configured Gitleaks with redaction to reduce secret exposure in logs.
 
-Proposed minimal hardening
-- Pin actions: `actions/checkout@<sha>`, `actions/setup-python@<sha>`, `astral-sh/setup-uv@<sha>`, `actions/upload-artifact@<sha>`.
-- Add `permissions:` blocks where missing; prefer `contents: read` on CI jobs that only read.
-- Harden installers: `curl --proto '=https' --tlsv1.2 -fsS URL | bash`; replace `apt-key` with keyring + signed-by.
+## Findings
+- No secrets detected in working tree or the last 365 days of commit history using heuristic patterns (AWS keys, GitHub tokens, Slack tokens, private keys, generic credential assignments).
+- No existing workflows were present; proposed one with safe defaults.
+- Prior audit notes: avoid floating action tags; ensure `permissions:` blocks exist; avoid insecure installers (`apt-key`, curl without TLS flags).
 
-Notes
-- Pushing workflow file edits was skipped due to missing `workflows: write` permission for this run. Apply the above edits manually or re-run with that permission.
+## Recommendations
+- If using an organization account, add `GITLEAKS_LICENSE` as a repository secret for Gitleaks-Action.
+- If false positives arise, add a `gitleaks.toml` allowlist at repo root and re-run.
+- Review Gitleaks artifacts when the workflow runs; rotate any discovered secrets.
+- Keep actions pinned and permissions minimal in future workflows. Avoid `pull_request_target` unless required and properly guarded.
 
-Compare link to review this branch:
-- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening
+## Next steps
+- Move `docs/proposed-security-audit.yml` to `.github/workflows/security-audit.yml` on a trusted machine/account.
+
+## Compare
+Create a pull request from `audit-hardening` to `main` to merge these changes after review.
