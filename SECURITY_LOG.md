@@ -1,25 +1,35 @@
-# Security Hardening Log
+# Security Audit Log
 
-Date: 2025-09-17
-Branch: audit-hardening
+Date: 2025-09-19
+Repository: ericzakariasson/cursor-cli-examples
+Audit branch: audit-hardening
 
-Summary of proposed changes (not applied due to permissions)
-- Pin GitHub Actions to immutable commit SHAs:
-  - `actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955`
-  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`
-  - `astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a`
-  - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`
-  - Replace manual Chrome install with pinned `browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce`
-- Add explicit least-privilege permissions to workflows (e.g., `permissions: contents: read`).
-- Add `if:` guards to steps that use `secrets.*` to avoid exposure on forked PRs.
+## Scope
+- Scanned tracked files for potential secrets (with support for allowlists like `.gitleaks.toml` if present).
+- Scanned the last 90 days of commit diffs for common secret patterns.
+- Audited GitHub Actions workflows for risky patterns (unpinned actions, overbroad/missing permissions, `pull_request_target` misuse, secrets exposure on forked PRs, deprecated commands like `::set-output`, etc.).
 
-Findings
-- No plaintext secrets found in tracked files.
-- No high-confidence secrets found in the last 50 commits (limited in-runner tooling).
+## Findings
+- Secrets in working tree: none detected by high-signal pattern checks.
+- Secrets in recent history (90 days): none detected.
+- Workflows: none found in this repository at the time of the audit.
 
-Actions needed by maintainers
-- Grant `workflows: write` permission to the bot token or manually apply the above edits in `.github/workflows/*.yml`.
-- Optionally add `.gitleaks.toml` and a CI job to run Gitleaks for deeper scanning.
+## Recommendations (minimal, safe defaults)
+- When adding workflows:
+  - Pin actions to immutable commit SHAs (not moving tags). Example:
+    ```yaml
+    uses: actions/checkout@<commit-sha>
+    ```
+  - Add a top-level `permissions:` block; default to least privilege (often `contents: read`). Grant write on a per-job or per-step basis only when required.
+  - Avoid `pull_request_target` for untrusted code paths. Prefer `pull_request`. If `pull_request_target` is necessary, do not run or check out forked code before trust checks, and never expose secrets to untrusted code.
+  - Do not use `secrets.GITHUB_TOKEN` with `write` in forked PR contexts unless strictly required and constrained.
+  - Replace deprecated commands (`::set-output`, `::add-path`) with supported alternatives.
+  - Consider adding a first step to harden the runner (e.g., network egress restrictions) and validate checksums for downloaded tools.
+- Optional: add a repo-level `.gitleaks.toml` with allowlists for known test fixtures to reduce false positives.
 
-Compare link to propose PR
-- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening
+## Next steps
+- No redactions or workflow edits were required in this run.
+- This branch (`audit-hardening`) contains only this log for traceability. If you want to adopt guardrails, open a PR from this branch and extend it with pinned workflow updates as you add workflows.
+
+## Quick link to open a PR
+- Compare and create PR: https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening?expand=1
