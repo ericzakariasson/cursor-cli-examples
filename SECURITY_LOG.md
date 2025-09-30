@@ -1,6 +1,6 @@
 # Security Audit Log
 
-Date: 2025-09-19
+Date: 2025-09-30
 Repository: ericzakariasson/cursor-cli-examples
 Audit branch: audit-hardening
 
@@ -12,24 +12,27 @@ Audit branch: audit-hardening
 ## Findings
 - Secrets in working tree: none detected by high-signal pattern checks.
 - Secrets in recent history (90 days): none detected.
-- Workflows: none found in this repository at the time of the audit.
+
+## Summary of proposed workflow hardening
+- Pin GitHub Actions to immutable commit SHAs:
+  - `actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955`
+  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`
+  - `astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a`
+  - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`
+- Add fork-guard conditions to steps that use repository secrets to avoid exposure on forked PRs.
+- Add minimal `permissions` to `test.yml` job (`contents: read`).
+- Replace deprecated `apt-key` with `signed-by` keyring pattern when installing Google Chrome.
 
 ## Recommendations (minimal, safe defaults)
-- When adding workflows:
-  - Pin actions to immutable commit SHAs (not moving tags). Example:
-    ```yaml
-    uses: actions/checkout@<commit-sha>
-    ```
-  - Add a top-level `permissions:` block; default to least privilege (often `contents: read`). Grant write on a per-job or per-step basis only when required.
-  - Avoid `pull_request_target` for untrusted code paths. Prefer `pull_request`. If `pull_request_target` is necessary, do not run or check out forked code before trust checks, and never expose secrets to untrusted code.
-  - Do not use `secrets.GITHUB_TOKEN` with `write` in forked PR contexts unless strictly required and constrained.
+- When adding or updating workflows:
+  - Pin actions to immutable commit SHAs (not moving tags).
+  - Add a top-level `permissions:` block; default to least privilege (often `contents: read`). Grant write only where required.
+  - Avoid `pull_request_target` for untrusted code paths. Prefer `pull_request` and never expose secrets to untrusted code.
   - Replace deprecated commands (`::set-output`, `::add-path`) with supported alternatives.
-  - Consider adding a first step to harden the runner (e.g., network egress restrictions) and validate checksums for downloaded tools.
-- Optional: add a repo-level `.gitleaks.toml` with allowlists for known test fixtures to reduce false positives.
+  - Optionally add a repo-level `.gitleaks.toml` with allowlists for known test fixtures to reduce false positives.
 
-## Next steps
-- No redactions or workflow edits were required in this run.
-- This branch (`audit-hardening`) contains only this log for traceability. If you want to adopt guardrails, open a PR from this branch and extend it with pinned workflow updates as you add workflows.
+## Notes
+- Workflow edits could not be pushed by this run due to missing `workflows` permission on the token. The above are proposed changes for a follow-up PR.
 
 ## Quick link to open a PR
 - Compare and create PR: https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening?expand=1
