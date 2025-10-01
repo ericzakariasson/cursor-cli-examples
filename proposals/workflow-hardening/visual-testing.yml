@@ -12,7 +12,7 @@ jobs:
   visual-testing:
     runs-on: ubuntu-latest
     # Skip visual testing for draft PRs
-    if: github.event.pull_request.draft == false && !github.event.pull_request.head.repo.fork
+    if: github.event.pull_request.draft == false
     steps:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
@@ -33,16 +33,16 @@ jobs:
 
       - name: Install Cursor CLI
         run: |
-          curl https://cursor.com/install -fsS | bash
+          curl -fsSL --proto '=https' --tlsv1.2 https://cursor.com/install | bash
           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
 
       - name: Install Chrome for Playwright MCP
         run: |
-          # Use official Google Linux repo keyring path; avoid deprecated apt-key
+          set -euo pipefail
           curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-linux-signing-keyring.gpg
           echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          sudo apt-get install -y --no-install-recommends google-chrome-stable
 
       - name: Configure git identity
         run: |
@@ -76,6 +76,7 @@ jobs:
           mkdir -p screenshots
 
       - name: Run visual testing with Cursor Agent
+        if: env.CURSOR_API_KEY != ''
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

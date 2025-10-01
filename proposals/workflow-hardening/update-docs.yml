@@ -10,18 +10,18 @@ permissions:
 
 jobs:
   docs:
-    if: ${{ !startsWith(github.head_ref, 'docs/') && github.event.pull_request.head.repo.fork == false }}
+    if: ${{ !startsWith(github.head_ref, 'docs/') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install Cursor CLI
         run: |
-          curl https://cursor.com/install -fsS | bash
+          curl -fsSL --proto '=https' --tlsv1.2 https://cursor.com/install | bash
           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
 
       - name: Configure git
@@ -30,6 +30,7 @@ jobs:
           git config user.email "cursoragent@cursor.com"
 
       - name: Update docs
+        if: env.CURSOR_API_KEY != ''
         env:
           MODEL: gpt-5
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}

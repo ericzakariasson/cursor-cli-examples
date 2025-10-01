@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   i18n:
-    if: ${{ !startsWith(github.head_ref, 'translate/') && !github.event.pull_request.head.repo.fork }}
+    if: ${{ !startsWith(github.head_ref, 'translate/') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -21,7 +21,7 @@ jobs:
 
       - name: Install Cursor CLI
         run: |
-          curl https://cursor.com/install -fsS | bash
+          curl -fsSL --proto '=https' --tlsv1.2 https://cursor.com/install | bash
           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
 
       - name: Configure git identity
@@ -30,6 +30,7 @@ jobs:
           git config user.email "cursoragent@cursor.com"
 
       - name: Propose i18n updates
+        if: env.CURSOR_API_KEY != ''
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           MODEL: gpt-5
