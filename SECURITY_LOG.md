@@ -1,21 +1,37 @@
 # Security Hardening Log
 
-Date: 2025-09-29
+This repository was scanned; minimal hardening is proposed below.
+
+Date: 2025-10-02
 Branch: audit-security-hardening
 
-Summary of proposed changes (not applied by bot due to workflow permission limits)
-- Pin GitHub Actions to immutable commit SHAs for reproducibility
-  - actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
-  - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-  - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a
-  - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-- Add step-security/harden-runner with `egress-policy: audit` to observe external network access
-- Add minimal permissions blocks where missing (e.g., `contents: read` for CI-only)
-- Add fork guards to steps that use secrets or write to PRs
+## Summary of Proposed Actions
+- Pin reusable GitHub Actions to immutable commit SHAs.
+- Replace deprecated `apt-key` usage with signed-by keyring for Google Chrome repo.
+- Convert `curl | bash` installer pattern to a download-then-execute flow.
+- Add conditional guards to steps that rely on `secrets.CURSOR_API_KEY` to avoid secret exposure on forks.
+- Add a `permissions: contents: read` block to the `Test` workflow.
 
-Secret scan results
-- No obvious credentials found in tracked files or recent history.
-- No `.gitleaks*` allowlist found. Consider adding `.gitleaks.toml` if needed.
+Note: Pushing workflow file changes requires the `workflows: write` permission for the token. This run's token lacked that scope; the edits are documented here for maintainers to apply.
 
-Note
-- This runner cannot push workflow file edits without the `workflows` permission. Please apply the above changes via PR or grant the permission for automated updates.
+## Findings
+- No plaintext secrets found in tracked files.
+- No secret patterns detected in the last 300 commits' diffs.
+- Several workflows use version tags (`@v4`, `@v5`) instead of SHAs.
+- Some jobs use network installer patterns that can be hardened.
+
+## Recommended Follow-ups
+- Add a `.gitleaks.toml` for allowlists and org-wide rules.
+- Review per-workflow `permissions:` and scope down further where possible (consider job-level `permissions`).
+- Periodically re-pin action SHAs to latest secure release.
+
+## Proposed Edits (apply manually if not already)
+- `.github/workflows/visual-testing.yml`: pin actions, harden Chrome apt keyring, guard secret-dependent step, pin upload-artifact.
+- `.github/workflows/code-review.yml`: pin actions, guard secret-dependent step.
+- `.github/workflows/fix-ci.yml`: pin actions, guard secret-dependent step.
+- `.github/workflows/translate-keys.yml`: pin actions, guard secret-dependent step.
+- `.github/workflows/fix-conflicts.yml`: pin actions, guard secret-dependent step.
+- `.github/workflows/improve-pr-description.yml`: pin actions, guard secret-dependent step.
+- `.github/workflows/update-docs.yml`: pin actions, guard secret-dependent step.
+- `.github/workflows/test.yml`: set `permissions: contents: read`, pin actions.
+- `.github/workflows/secrets-audit.yml`: pin actions.
