@@ -21,3 +21,13 @@ Secret scanning:
 Recommendations:
 - Consider adding a repository-level `permissions: read-all` default via org/repo settings and granting per-job writes only when needed.
 - Periodically validate pinned SHAs and update to latest stable versions.
+
+Date: 2025-10-08
+Branch: audit/workflow-hardening
+
+Summary of this run:
+- No high-confidence secrets detected in tracked files using heuristic patterns.
+- Recommended edits unchanged: pin actions to SHAs, add fork guards for PR workflows using secrets, replace deprecated apt-key with keyrings, and add explicit least-privilege permissions where missing.
+
+Notes:
+- No `.gitleaks.toml` allowlist present; consider adding if false positives arise.
