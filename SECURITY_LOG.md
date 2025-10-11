@@ -1,37 +1,23 @@
-# Security Audit Log
+# Security Hardening Log
 
-Date: 2025-10-06
-Repository: ericzakariasson/cursor-cli-examples
-Audit branch: audit-hardening
+Date: 2025-10-11
+Branch: `audit/security-hardening`
 
-## Scope
-- Scanned tracked files for potential secrets (with support for allowlists like `.gitleaks.toml` if present).
-- Scanned recent commit diffs for common secret patterns.
-- Audited GitHub Actions workflows for risky patterns (unpinned actions, overbroad/missing permissions, `pull_request_target` misuse, secrets exposure on forked PRs, deprecated commands like `::set-output`, etc.).
+Summary of proposed changes (not applied due to workflow permissions):
+- Pin GitHub Actions to immutable commit SHAs (`actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `astral-sh/setup-uv`).
+- Add minimal `permissions: contents: read` to workflows missing a top-level block and scope per-job permissions where write is required.
+- Guard Cursor-dependent steps with `if: ${{ secrets.CURSOR_API_KEY != '' }}` to avoid failures/exposure on forks.
+- Replace deprecated `apt-key` usage with signed-by keyring flow for Chrome installation.
 
-## Findings
-- Secrets in working tree: none detected by high-signal pattern checks.
-- Secrets in recent history: none detected.
+Rationale:
+- Pinning actions mitigates supply-chain risk from tag retargeting.
+- Restrictive permissions follow the principle of least privilege.
+- Guarding secrets prevents accidental usage in forked PR contexts.
+- Removing `apt-key` avoids insecure, deprecated key management.
 
-## Summary of proposed workflow hardening
-- Pin GitHub Actions to immutable commit SHAs:
-  - `actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955`
-  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`
-  - `astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a`
-  - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`
-- Add fork-guard conditions to PR workflows that use repository secrets to avoid exposure on forked PRs.
-- Add minimal `permissions` to `test.yml` job (`contents: read`).
+Recommendations:
+- Consider adding `.gitleaks.toml` if you use custom secrets/allowlists; run gitleaks in CI.
+- Periodically review repository variables/secrets and workflow permissions.
+- Prefer the `pull_request` trigger for untrusted contributions; avoid `pull_request_target` unless strictly necessary with strong safeguards.
 
-## Recommendations (minimal, safe defaults)
-- When adding or updating workflows:
-  - Pin actions to immutable commit SHAs (not moving tags).
-  - Add a top-level `permissions:` block; default to least privilege (often `contents: read`). Grant write only where required.
-  - Avoid `pull_request_target` for untrusted code paths. Prefer `pull_request` and never expose secrets to untrusted code.
-  - Replace deprecated commands (`::set-output`, `::add-path`) with supported alternatives.
-  - Optionally add a repo-level `.gitleaks.toml` with allowlists for known test fixtures to reduce false positives.
-
-## Notes
-- Workflow edits could not be pushed by this run due to missing `workflows` permission on the token. The above are proposed changes for a follow-up PR.
-
-## Quick link to open a PR
-- <!-- audit-hardening-comment-marker --> Compare and create PR: https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening?expand=1
+Note: Workflow file edits were not pushed because this job lacks the `workflows` permission required by repository rules. You can approve these changes via a PR from this branch.
