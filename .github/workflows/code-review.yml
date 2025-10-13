@@ -11,17 +11,17 @@ permissions:
 jobs:
   code-review:
     runs-on: ubuntu-latest
-    # Skip drafts and forked PRs (no secrets on forks)
-    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == false
+    # Skip automated code review for draft PRs
+    if: github.event.pull_request.draft == false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
 
