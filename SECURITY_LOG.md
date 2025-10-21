@@ -1,17 +1,18 @@
 # Security Hardening Log
 
-Date: 2025-10-20
+Date: 2025-10-21
 Branch: audit
 
-Summary of findings and recommendations:
-- Pin reusable actions to immutable SHAs (checkout, setup-python, upload-artifact, setup-uv).
-- Reduce workflow permissions to least privilege (prefer `contents: read`).
-- Add fork-safety guard to PR-triggered jobs to avoid using secrets on forks.
-- Add a scheduled audit workflow to ensure periodic review (in a follow-up change where workflows permission allows).
+Summary of changes:
+- Pinned actions to immutable SHAs: `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `astral-sh/setup-uv`.
+- Added/normalized permissions blocks to least privilege (primarily `contents: read`; kept `pull-requests: write` where commenting is required).
+- Maintained scheduled audit workflow with safer defaults.
 
 Findings:
-- No high-signal secrets detected in working tree via regex scan. Consider running gitleaks for comprehensive coverage and add an allowlist if needed.
-- No deprecated `::set-env` or `::add-path` usages found.
+- No high-signal secrets detected in working tree via regex scan. Consider running gitleaks for comprehensive coverage and add an allowlist (`.gitleaks.toml`) if needed.
+- No `pull_request_target` usage detected. No deprecated `::set-env`/`::add-path` found.
 
-Next steps:
-- Approve a PR that pins actions and reduces permissions. Compare link will be provided on the latest open PR.
+Remediation guidance:
+- Keep using pinned SHAs; update them periodically.
+- Limit default `permissions` at the workflow top-level and elevate per job only when necessary.
+- Avoid exposing secrets on forked PRs; prefer token scopes and repo/PR write only where needed.
