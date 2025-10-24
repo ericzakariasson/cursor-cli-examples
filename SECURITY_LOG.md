@@ -1,18 +1,19 @@
 # Security Hardening Log
 
-Date: 2025-10-21
+Date: 2025-10-24
 Branch: audit
 
-Summary of changes:
-- Pinned actions to immutable SHAs: `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `astral-sh/setup-uv`.
-- Added/normalized permissions blocks to least privilege (primarily `contents: read`; kept `pull-requests: write` where commenting is required).
-- Maintained scheduled audit workflow with safer defaults.
+Summary of findings and recommendations (no workflow changes pushed due to missing `workflows` permission for this automation):
 
-Findings:
-- No high-signal secrets detected in working tree via regex scan. Consider running gitleaks for comprehensive coverage and add an allowlist (`.gitleaks.toml`) if needed.
-- No `pull_request_target` usage detected. No deprecated `::set-env`/`::add-path` found.
+- Recommended pinning third-party actions to commit SHAs:
+  - actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+  - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+  - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+  - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a
+- Recommended guardrails for PR workflows using secrets: `if: ${{ github.event.pull_request.head.repo.fork == false }}` to avoid exposing secrets to forks.
+- Permissions appear scoped; continue aiming for least privilege per job.
+- No plaintext secrets found in working tree; no `.gitleaks.toml` present. Consider adding gitleaks with an allowlist for test keys.
 
-Remediation guidance:
-- Keep using pinned SHAs; update them periodically.
-- Limit default `permissions` at the workflow top-level and elevate per job only when necessary.
-- Avoid exposing secrets on forked PRs; prefer token scopes and repo/PR write only where needed.
+Next steps for maintainers:
+1) Apply the above pins and guards in `.github/workflows/*.yml` (requires `workflows` permission).
+2) Optionally add a scheduled gitleaks scan with allowlist.
