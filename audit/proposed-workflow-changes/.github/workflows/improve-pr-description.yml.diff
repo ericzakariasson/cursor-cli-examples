@@ -1,0 +1,13 @@
+diff --git a/.github/workflows/improve-pr-description.yml b/.github/workflows/improve-pr-description.yml
+index 8063761..7e1c316 100644
+--- a/.github/workflows/improve-pr-description.yml
++++ b/.github/workflows/improve-pr-description.yml
+@@ -12,7 +12,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha || github.sha }}
