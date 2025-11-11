@@ -1,6 +1,36 @@
 # Security Hardening Log
 
-Date: 2025-11-09
+## 2025-11-11
+
+- No high-confidence secrets detected in tracked files using heuristic patterns (API tokens, private keys, AWS keys, Slack tokens). Review `.gitleaks.toml` allowlist if added in future.
+- Pinned unpinned GitHub Actions to immutable commit SHAs across workflows.
+- Added explicit minimal token permissions to `test.yml` (`permissions: contents: read`).
+- No `pull_request_target`, `secrets: inherit`, or deprecated `::set-output`/`::set-env` usages found.
+
+Pinned Actions
+- actions/checkout@v4 → 08eba0b27e820071cde6df949e0beb9ba4906955
+- actions/setup-python@v5 → a26af69be951a213d495a4c3e4e4022e16d87065
+- actions/upload-artifact@v4 → ea165f8d65b6e75b540449e92b4886f43607fa02
+- astral-sh/setup-uv@v4 → 38f3f104447c67c051c4a08e39b64a148898af3a
+
+Workflows touched
+- .github/workflows/visual-testing.yml
+- .github/workflows/improve-pr-description.yml
+- .github/workflows/update-docs.yml
+- .github/workflows/test.yml
+- .github/workflows/translate-keys.yml
+- .github/workflows/secrets-audit.yml
+- .github/workflows/fix-conflicts.yml
+- .github/workflows/code-review.yml
+- .github/workflows/fix-ci.yml
+
+Guidance
+- Keep actions pinned; periodically bump SHAs to latest tags after review.
+- Prefer least-privilege `permissions` at workflow/job level; elevate only where required.
+- Avoid `pull_request_target` unless absolutely necessary; if used, never run untrusted code with secrets.
+- Consider integrating gitleaks for scheduled scans and maintain `.gitleaks.toml` allowlists to reduce noise.
+
+## 2025-11-09
 
 Scope: Repository-wide secrets exposure scan and GitHub Actions workflow hardening.
 
