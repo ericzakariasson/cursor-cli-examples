@@ -1,5 +1,46 @@
 # Security Audit Log
 
+Date: 2025-11-12
+Branch: audit-hardening
+Scope: ericzakariasson/cursor-cli-examples
+
+## Summary
+- No plaintext secrets detected in tracked files in this run.
+- No `.gitleaks.toml` allowlist found; consider adding one if you deploy gitleaks.
+- Proposed minimal GitHub Actions workflow hardening (pin actions, fork guards, least-privilege permissions). Applying workflow file edits may require repository-level `workflows` permission.
+
+## Proposed Workflow Hardening
+- Add explicit least-privilege permissions where missing; for test-only workflows, set:
+  - `permissions: { contents: read }`
+- Skip PR jobs that need secrets/write on forks:
+  - Example job condition: `${{ github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == false }}`
+- Pin third-party actions to immutable SHAs (verified this run):
+  - `actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955` (v4)
+  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065` (v5)
+  - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` (v4)
+  - `astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a` (v4)
+
+## Secret Scan Details
+Patterns scanned (non-exhaustive):
+- AWS access keys, GitHub personal tokens, Slack tokens, Google API keys, private key headers
+- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\s*[:=]`
+
+History window: tracked files only in this run. For deeper coverage, consider periodic history scans with gitleaks.
+
+## Guidance
+- Keep actions pinned to SHAs; update by bumping to latest release SHAs.
+- Prefer job-level `permissions` scoped to minimum needed; ensure each workflow declares a `permissions` block.
+- Avoid `pull_request_target` unless absolutely necessary and well-guarded.
+
+## Compare and Create PR
+- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening?quick_pull=1
+
+<!-- security-hardening-audit:2025-11-12 -->
+
+---
+
+# Security Audit Log
+
 Date: 2025-11-08
 Branch: audit-hardening
 Scope: ericzakariasson/cursor-cli-examples
