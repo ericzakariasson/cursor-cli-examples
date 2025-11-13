@@ -1,28 +1,37 @@
-# Security Hardening Audit
+# Security Hardening Log
 
-Date: 2025-11-01
-Branch: audit/workflow-hardening
+Date: 2025-11-13
+Branch: audit-workflow-hardening
 
-## Summary
-- No secrets detected in the working tree or recent history (last 1 year, common patterns).
-- Hardened GitHub Actions by pinning actions to immutable SHAs, adding minimal permissions, and guarding secret-using steps from running on forked PRs.
+Summary of audit (proposed changes, see notes)
+- Proposed pinning reusable GitHub Actions to immutable commit SHAs:
+  - actions/checkout@v4 -> 08eba0b27e820071cde6df949e0beb9ba4906955
+  - actions/setup-python@v5 -> a26af69be951a213d495a4c3e4e4022e16d87065
+  - actions/upload-artifact@v4 -> ea165f8d65b6e75b540449e92b4886f43607fa02
+  - astral-sh/setup-uv@v4 -> 38f3f104447c67c051c4a08e39b64a148898af3a
+- Proposed adding least-privilege permissions block to `test.yml` (contents: read).
+- Proposed adding fork-safety guards on PR workflows invoking steps that use repository secrets (`Visual Testing`, `Code Review`, `Translate Keys`, `Update Docs`).
 
-## Changes
-- Pinned actions to commit SHAs with version comments:
-  - actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
-  - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-  - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-  - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
-- Added workflow-level minimal permissions:
-  - .github/workflows/test.yml ? permissions: contents: read
-- Added fork-safety guards to steps that consume secrets or write to PRs:
-  - visual-testing.yml ? guard the Cursor Agent step
-  - code-review.yml ? guard the code review step
-  - translate-keys.yml ? guard the i18n update step
-  - update-docs.yml ? guard the docs update step
+Notes
+- This run’s token lacks `workflows` permission; workflow file changes cannot be pushed directly. Use the compare link in the PR comment to open a PR with the proposed edits.
 
-## Recommendations
-- Avoid using deprecated apt-key; migrate to keyrings with signed-by.
-- Keep actions pinned; periodically refresh SHAs to the latest secure tags.
-- For any future workflows using pull_request events with secrets or write scopes, apply the same fork guard: `if: ${{ github.event.pull_request.head.repo.fork == false }}`.
-- If introducing secret scans, consider adding a repository-wide allowlist (e.g., .gitleaks.toml) for expected patterns to reduce false positives.
+Workflows targeted
+- .github/workflows/test.yml
+- .github/workflows/visual-testing.yml
+- .github/workflows/code-review.yml
+- .github/workflows/fix-ci.yml
+- .github/workflows/translate-keys.yml
+- .github/workflows/update-docs.yml
+- .github/workflows/improve-pr-description.yml
+- .github/workflows/fix-conflicts.yml
+- .github/workflows/secrets-audit.yml
+
+Secrets exposure scan
+- Working tree scan: no matches for common high-risk token patterns (AWS keys, GitHub PATs, Slack tokens, private key headers).
+- Recent history scan (last 200 commits, all refs): no matches found for the same patterns.
+  - Note: detections in YAML prompts referencing these token names were documentation mentions, not secrets.
+
+Recommendations
+- Continue to avoid `pull_request_target` unless absolutely necessary; prefer `pull_request` with fork guards on secret-using steps.
+- Keep action pins updated periodically by bumping SHAs to the desired release commit.
+- If a legitimate secret ever appears in git history, rotate it immediately and remove/rotate any derived credentials.
