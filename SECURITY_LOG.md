@@ -123,3 +123,32 @@ History window: last 200 commits (diffs). No hits found.
 - https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening
 
 <!-- security-hardening-audit:2025-10-31 -->
+
+---
+
+# Security Audit Log
+
+Date: 2025-11-20
+Branch: audit-hardening
+Scope: ericzakariasson/cursor-cli-examples
+
+## Summary
+- No potential secrets detected in repository files or the last 200 commits.
+- Proposed minimal workflow hardening: pin actions to SHAs, add fork-PR guards on secret-using jobs, and add least-privilege permissions to test workflow. These changes are documented below but not pushed to workflows due to missing `workflows` permission for this token.
+
+## Proposed Workflow Hardening (not applied via push this run)
+- Pin actions:
+  - actions/checkout@v4 -> `@34e114876b0b11c390a56381ad16ebd13914f8d5`
+  - astral-sh/setup-uv@v4 -> `@e4db8464a088ece1b920f60402e813ea4de65b8f`
+  - actions/upload-artifact@v4 -> `@ea165f8d65b6e75b540449e92b4886f43607fa02`
+  - actions/setup-python@v5 -> `@a26af69be951a213d495a4c3e4e4022e16d87065`
+- Add fork-PR guard: `if: github.event.pull_request.head.repo.fork == false` to jobs using `${{ secrets.* }}` in PR-triggered workflows.
+- Add default least-privilege permissions to `.github/workflows/test.yml`: `permissions: { contents: read }`.
+
+## Next Steps
+- Re-run with a token that has `workflows` scope, or apply the above edits manually via a PR.
+
+## Compare
+- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening
+
+<!-- security-hardening-audit:2025-11-20 -->
