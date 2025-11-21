@@ -1,5 +1,21 @@
 # Security Hardening Log
 
+## 2025-11-21
+
+- Scope: Repository-wide secrets exposure scan and GitHub Actions workflow hardening.
+- Tracked files scan: no high-confidence secrets found.
+- Recent git history (last 180 days, ~500 commits): no high-confidence secrets detected.
+- No usage of `pull_request_target` detected.
+- Proposed workflow edits (recorded due to missing `workflows` permission on token):
+  - Pin actions to immutable SHAs:
+    - actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 (was @v4)
+    - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 (was @v5)
+    - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 (was @v4)
+    - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a (was @v4)
+  - Add explicit default token permission in CI tests: `permissions: contents: read` in `.github/workflows/test.yml`.
+  - Guard secrets on forked PRs: add `if: ${{ github.event.pull_request.head.repo.fork == false }}` to steps that use secrets in PR-triggered workflows (code review, visual testing, docs, i18n updates).
+- Follow-ups: replace curl|bash installers with checksum-verified flows; migrate from deprecated `apt-key` to keyrings with `signed-by`; prefer least-privilege `permissions` scoped at job-level.
+
 ## 2025-11-11
 
 - No high-confidence secrets detected in tracked files using heuristic patterns (API tokens, private keys, AWS keys, Slack tokens). Review `.gitleaks.toml` allowlist if added in future.
