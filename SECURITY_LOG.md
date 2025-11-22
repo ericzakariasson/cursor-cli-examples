@@ -1,5 +1,20 @@
 # Security Hardening Log
 
+## 2025-11-22
+
+- Scope: Repository-wide secrets exposure scan and GitHub Actions workflow hardening.
+- Tracked files scan: no high-confidence secrets found.
+- Recent git history (last 200 commits): no high-confidence secrets detected.
+- Proposed workflow edits (recorded due to repo rules preventing workflow updates via token):
+  - Pin actions to immutable SHAs:
+    - actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 (was @v4)
+    - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 (was @v5)
+    - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 (was @v4)
+    - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a (was @v4)
+  - Add explicit default token permission where missing: `permissions: contents: read` (e.g., `.github/workflows/test.yml`).
+  - Guard secrets/write operations on forked PRs: add `if: ${{ github.event.pull_request.head.repo.fork == false }}` to PR jobs in code review, visual testing, docs, and i18n workflows.
+  - Replace deprecated `apt-key` with `gpg --dearmor` + `signed-by` keyring configuration in Chrome install steps.
+
 ## 2025-11-21
 
 - Scope: Repository-wide secrets exposure scan and GitHub Actions workflow hardening.
