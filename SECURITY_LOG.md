@@ -1,16 +1,15 @@
 # Security Hardening Log
 
-Date: 2025-11-13
+Date: 2025-11-24
 Branch: audit-workflow-hardening
 
 Summary of audit (proposed changes, see notes)
 - Proposed pinning reusable GitHub Actions to immutable commit SHAs:
-  - actions/checkout@v4 -> 08eba0b27e820071cde6df949e0beb9ba4906955
-  - actions/setup-python@v5 -> a26af69be951a213d495a4c3e4e4022e16d87065
-  - actions/upload-artifact@v4 -> ea165f8d65b6e75b540449e92b4886f43607fa02
-  - astral-sh/setup-uv@v4 -> 38f3f104447c67c051c4a08e39b64a148898af3a
-- Proposed adding least-privilege permissions block to `test.yml` (contents: read).
-- Proposed adding fork-safety guards on PR workflows invoking steps that use repository secrets (`Visual Testing`, `Code Review`, `Translate Keys`, `Update Docs`).
+  - actions/checkout@v4 -> 34e114876b0b11c390a56381ad16ebd13914f8d5 (v4.3.1)
+  - actions/setup-python@v5 -> a26af69be951a213d495a4c3e4e4022e16d87065 (v5.6.0)
+  - actions/upload-artifact@v4 -> ea165f8d65b6e75b540449e92b4886f43607fa02 (v4.6.2)
+  - astral-sh/setup-uv@v4 -> 38f3f104447c67c051c4a08e39b64a148898af3a (v4.2.0)
+- Proposed adding safer installer flags to `curl` invocations: `-fsSL --proto '=https' --tlsv1.2`.
 
 Notes
 - This run’s token lacks `workflows` permission; workflow file changes cannot be pushed directly. Use the compare link in the PR comment to open a PR with the proposed edits.
