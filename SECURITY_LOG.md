@@ -1,5 +1,46 @@
 # Security Audit Log
 
+Date: 2025-11-25
+Branch: audit-hardening
+Scope: ericzakariasson/cursor-cli-examples
+
+## Summary
+- No potential secrets detected in tracked files or in the last 200 commits.
+- Proposed minimal workflow hardening: pin actions to SHAs, add fork-PR guards on secret-using jobs, and set least-privilege permissions for tests. Applying workflow file edits may require repository-level `workflows` permission.
+
+## Proposed Workflow Hardening
+- Pin actions (verified this run):
+  - `actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5` (v4)
+  - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065` (v5)
+  - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` (v4)
+  - `astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a` (v4)
+- Skip PR jobs that need secrets/write on forks:
+  - Example job condition: `${{ github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == false }}`
+- Add explicit least-privilege permissions where missing; for test-only workflows:
+  - `permissions: { contents: read }`
+
+## Secret Scan Details
+Patterns scanned (non-exhaustive):
+- AWS access keys, GitHub personal tokens, Slack tokens, Google API keys, private key headers
+- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\\s*[:=]`
+
+History window: tracked files and last 200 commits (diffs). No hits found.
+
+## Guidance
+- Keep actions pinned to SHAs; update periodically by bumping to the latest release SHA.
+- Prefer job-level `permissions` scoped to the minimum needed; ensure each workflow declares a `permissions` block.
+- Avoid `pull_request_target` unless absolutely necessary and well-guarded.
+- Replace deprecated `apt-key` usage with keyring-based installation when feasible; avoid `curl | bash` unless validating source and checksums.
+
+## Compare and Create PR
+- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening?quick_pull=1
+
+<!-- security-hardening-audit:2025-11-25 -->
+
+---
+
+# Security Audit Log
+
 Date: 2025-11-12
 Branch: audit-hardening
 Scope: ericzakariasson/cursor-cli-examples
@@ -23,7 +64,7 @@ Scope: ericzakariasson/cursor-cli-examples
 ## Secret Scan Details
 Patterns scanned (non-exhaustive):
 - AWS access keys, GitHub personal tokens, Slack tokens, Google API keys, private key headers
-- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\s*[:=]`
+- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\\s*[:=]`
 
 History window: tracked files only in this run. For deeper coverage, consider periodic history scans with gitleaks.
 
@@ -66,7 +107,7 @@ Scope: ericzakariasson/cursor-cli-examples
 ## Secret Scan Details
 Patterns scanned (non-exhaustive):
 - AWS access keys, GitHub personal tokens, Slack tokens, Google API keys, private key headers
-- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\s*[:=]`
+- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\\s*[:=]`
 
 History window: tracked files only in this run. Consider adding a periodic history scan (e.g., gitleaks) for deeper coverage.
 
@@ -109,7 +150,7 @@ Scope: ericzakariasson/cursor-cli-examples
 ## Secret Scan Details
 Patterns scanned (non-exhaustive):
 - AWS access keys, GitHub personal tokens, Slack tokens, Google API keys, private key headers
-- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\s*[:=]\s*"..."`
+- Generic assignments: case-insensitive `(api|secret|token|password|passwd|pwd|key)\\s*[:=]\\s*\"...\"`
 
 History window: last 200 commits (diffs). No hits found.
 
