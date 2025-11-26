@@ -1,5 +1,23 @@
 # Security Hardening Log
 
+## 2025-11-26
+
+- No high-confidence secrets detected in tracked files or in the last 300 commits scanned.
+- Proposed hardening captured under `.audit/proposed-workflows/` (non-disruptive):
+  - Pin actions to commit SHAs:
+    - `actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5`
+    - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`
+    - `astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a`
+    - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`
+  - Add explicit `permissions: contents: read` to `test.yml`.
+  - Add fork guards to PR workflows that use secrets (`code-review`, `visual-testing`, `translate-keys`, `update-docs`) to skip on forks.
+- Additional recommendations (not applied to avoid breaking changes):
+  - Replace `curl | bash` installers with pinned, verified downloads and checksums.
+  - Replace deprecated `apt-key add` in `visual-testing.yml` with a keyring + `signed-by=` approach.
+
+Quick-create PR link (compare hardened branch to main):
+`https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit`
+
 ## 2025-11-10
 
 - No high-confidence secrets detected in tracked files or in the last 100 commits scanned.
