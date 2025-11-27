@@ -1,5 +1,29 @@
 # Security Hardening Log
 
+Date: 2025-11-27
+
+Summary of automated audit and minimal fixes:
+
+- No plaintext secrets detected in tracked files or in the last 100 commits.
+- Proposed workflow hardening updates prepared (workflow file updates require `workflows` permission to push):
+  - Pin reusable actions to immutable SHAs:
+    - actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+    - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+    - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a
+  - Add fork-safety guards to PR-triggered jobs that require secrets or write permissions:
+    - .github/workflows/code-review.yml
+    - .github/workflows/visual-testing.yml
+    - .github/workflows/update-docs.yml
+    - .github/workflows/translate-keys.yml
+  - Add least-privilege default permissions to CI:
+    - .github/workflows/test.yml → permissions: contents: read
+
+Notes and guidance:
+- If you update action versions, refresh the pins by resolving the tag to a commit SHA (e.g., `gh api repos/OWNER/REPO/git/refs/tags/vX` and, if needed, `gh api repos/OWNER/REPO/git/tags/<sha>` to dereference annotated tags).
+- Jobs guarded for forks will skip when `github.event.pull_request.head.repo.fork == true`. This avoids exposing repository secrets and prevents write operations from forked contexts.
+- Consider reviewing remaining workflows for any additional permission tightening once functional needs are confirmed.
+
 ## 2025-11-26
 
 - No high-confidence secrets detected in tracked files or in the last 300 commits scanned.
