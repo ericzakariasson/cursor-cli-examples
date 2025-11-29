@@ -29,3 +29,6 @@ Recommendations:
 Change scope:
 - Files updated under `.github/workflows/`: pin actions, add fork guards, and minimal permissions.
 - New file: `SECURITY_LOG.md` (this document).
+
+Note:
+- The GitHub App token for this workflow does not include the `workflows` scope, so live workflow files under `.github/workflows/` could not be pushed. Hardened workflow files have been saved under `.audit/proposed-workflows/` for maintainers to review and apply. Once permissions allow, copying those files back into `.github/workflows/` will enable the hardening changes.
