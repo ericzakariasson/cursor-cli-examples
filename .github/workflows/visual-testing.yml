@@ -12,16 +12,16 @@ jobs:
   visual-testing:
     runs-on: ubuntu-latest
     # Skip visual testing for draft PRs
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false && !github.event.pull_request.head.repo.fork
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a
         with:
           enable-cache: true
 
@@ -108,7 +108,7 @@ jobs:
           pkill -f "python -m cursor_cli_examples.app" || true
 
       - name: Upload screenshots as artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: visual-testing-screenshots-${{ github.event.pull_request.number }}
