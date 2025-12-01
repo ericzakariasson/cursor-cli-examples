@@ -12,16 +12,16 @@ jobs:
   visual-testing:
     runs-on: ubuntu-latest
     # Skip visual testing for draft PRs
-    if: github.event.pull_request.draft == false && !github.event.pull_request.head.repo.fork
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
         with:
           enable-cache: true
 
@@ -38,8 +38,9 @@ jobs:
 
       - name: Install Chrome for Playwright MCP
         run: |
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          # Securely install Google signing key and repository
+          wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor | sudo tee /usr/share/keyrings/google-linux-signing-keyring.gpg >/dev/null
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
@@ -108,7 +109,7 @@ jobs:
           pkill -f "python -m cursor_cli_examples.app" || true
 
       - name: Upload screenshots as artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: visual-testing-screenshots-${{ github.event.pull_request.number }}

@@ -25,3 +25,6 @@ Recommended follow-ups:
 - Review and minimize permissions in writer workflows; grant only when a step actually needs it.
 - Consider adding a `.gitleaks.toml` to codify allowlists/ignores.
 - Periodically re-pin action SHAs to the latest secure patch versions.
+
+Note:
+- The token in this context lacks the `workflows` scope, so updates to files under `.github/workflows/` could not be pushed. Hardened workflow files have been saved under `.audit/proposed-workflows/` for maintainers to review and apply. Once permissions allow, copying those files back into `.github/workflows/` will enable the hardening changes.
