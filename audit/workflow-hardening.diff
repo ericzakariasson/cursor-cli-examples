@@ -1,0 +1,184 @@
+diff --git a/.github/workflows/code-review.yml b/.github/workflows/code-review.yml
+index 3592d5a..53e272e 100644
+--- a/.github/workflows/code-review.yml
++++ b/.github/workflows/code-review.yml
+@@ -15,13 +15,13 @@ jobs:
+     if: github.event.pull_request.draft == false
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha }}
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@v4
++        uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
+         with:
+           enable-cache: true
+ 
+@@ -42,6 +42,7 @@ jobs:
+           git config user.email "cursoragent@cursor.com"
+ 
+       - name: Perform automated code review
++        if: ${{ github.event.pull_request.head.repo.fork == false }}
+         env:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
+diff --git a/.github/workflows/fix-ci.yml b/.github/workflows/fix-ci.yml
+index 93ffafe..29673cb 100644
+--- a/.github/workflows/fix-ci.yml
++++ b/.github/workflows/fix-ci.yml
+@@ -17,7 +17,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+ 
+diff --git a/.github/workflows/fix-conflicts.yml b/.github/workflows/fix-conflicts.yml
+index 9883916..4dfc75a 100644
+--- a/.github/workflows/fix-conflicts.yml
++++ b/.github/workflows/fix-conflicts.yml
+@@ -14,7 +14,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha }}
+diff --git a/.github/workflows/improve-pr-description.yml b/.github/workflows/improve-pr-description.yml
+index 8063761..b5d3ada 100644
+--- a/.github/workflows/improve-pr-description.yml
++++ b/.github/workflows/improve-pr-description.yml
+@@ -12,7 +12,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+diff --git a/.github/workflows/secrets-audit.yml b/.github/workflows/secrets-audit.yml
+index bc31cb4..073fa7b 100644
+--- a/.github/workflows/secrets-audit.yml
++++ b/.github/workflows/secrets-audit.yml
+@@ -15,7 +15,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+ 
+diff --git a/.github/workflows/test.yml b/.github/workflows/test.yml
+index dbf7191..3b4e0ac 100644
+--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -6,15 +6,18 @@ on:
+   pull_request:
+     branches: [main]
+ 
++permissions:
++  contents: read
++
+ jobs:
+   test:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+ 
+       - name: Set up Python
+-        uses: actions/setup-python@v5
++        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+         with:
+           python-version: "3.12"
+ 
+diff --git a/.github/workflows/translate-keys.yml b/.github/workflows/translate-keys.yml
+index cb785f8..2abe6b0 100644
+--- a/.github/workflows/translate-keys.yml
++++ b/.github/workflows/translate-keys.yml
+@@ -14,7 +14,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha }}
+@@ -30,6 +30,7 @@ jobs:
+           git config user.email "cursoragent@cursor.com"
+ 
+       - name: Propose i18n updates
++        if: ${{ github.event.pull_request.head.repo.fork == false }}
+         env:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           MODEL: gpt-5
+diff --git a/.github/workflows/update-docs.yml b/.github/workflows/update-docs.yml
+index 9d2cf63..0bd70aa 100644
+--- a/.github/workflows/update-docs.yml
++++ b/.github/workflows/update-docs.yml
+@@ -14,7 +14,7 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha }}
+@@ -30,6 +30,7 @@ jobs:
+           git config user.email "cursoragent@cursor.com"
+ 
+       - name: Update docs
++        if: ${{ github.event.pull_request.head.repo.fork == false }}
+         env:
+           MODEL: gpt-5
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+diff --git a/.github/workflows/visual-testing.yml b/.github/workflows/visual-testing.yml
+index 3953138..4dbf0fb 100644
+--- a/.github/workflows/visual-testing.yml
++++ b/.github/workflows/visual-testing.yml
+@@ -15,13 +15,13 @@ jobs:
+     if: github.event.pull_request.draft == false
+     steps:
+       - name: Checkout repository
+-        uses: actions/checkout@v4
++        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+         with:
+           fetch-depth: 0
+           ref: ${{ github.event.pull_request.head.sha }}
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@v4
++        uses: astral-sh/setup-uv@e4db8464a088ece1b920f60402e813ea4de65b8f # v4
+         with:
+           enable-cache: true
+ 
+@@ -75,6 +75,7 @@ jobs:
+           mkdir -p screenshots
+ 
+       - name: Run visual testing with Cursor Agent
++        if: ${{ github.event.pull_request.head.repo.fork == false }}
+         env:
+           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+@@ -108,7 +109,7 @@ jobs:
+           pkill -f "python -m cursor_cli_examples.app" || true
+ 
+       - name: Upload screenshots as artifacts
+-        uses: actions/upload-artifact@v4
++        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+         if: always()
+         with:
+           name: visual-testing-screenshots-${{ github.event.pull_request.number }}
