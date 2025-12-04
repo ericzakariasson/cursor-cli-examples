@@ -167,29 +167,50 @@ History window: last 200 commits (diffs). No hits found.
 
 ---
 
-# Security Audit Log
+# Security Hardening Log
 
-Date: 2025-11-20
-Branch: audit-hardening
+Date: 2025-12-04
 Scope: ericzakariasson/cursor-cli-examples
 
-## Summary
-- No potential secrets detected in repository files or the last 200 commits.
-- Proposed minimal workflow hardening: pin actions to SHAs, add fork-PR guards on secret-using jobs, and add least-privilege permissions to test workflow. These changes are documented below but not pushed to workflows due to missing `workflows` permission for this token.
+Summary of actions
+- Pinned GitHub Actions to immutable SHAs across workflows to prevent supply-chain drift.
+- Added minimal permissions to missing workflow (`test.yml`), defaulting `contents: read`.
+- Added fork-safety guards to steps that consume repository secrets so they do not run on forked PRs.
+- Verified: no use of `pull_request_target`, no deprecated set-output/add-path/set-env commands, and most workflows already define explicit permissions.
+- Secrets scan (current tree): no high-confidence secrets detected.
 
-## Proposed Workflow Hardening (not applied via push this run)
-- Pin actions:
-  - actions/checkout@v4 -> `@34e114876b0b11c390a56381ad16ebd13914f8d5`
-  - astral-sh/setup-uv@v4 -> `@e4db8464a088ece1b920f60402e813ea4de65b8f`
-  - actions/upload-artifact@v4 -> `@ea165f8d65b6e75b540449e92b4886f43607fa02`
-  - actions/setup-python@v5 -> `@a26af69be951a213d495a4c3e4e4022e16d87065`
-- Add fork-PR guard: `if: github.event.pull_request.head.repo.fork == false` to jobs using `${{ secrets.* }}` in PR-triggered workflows.
-- Add default least-privilege permissions to `.github/workflows/test.yml`: `permissions: { contents: read }`.
+Details
+- Pinned to SHAs
+  - actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  - actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+  - astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a
+  - actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
 
-## Next Steps
-- Re-run with a token that has `workflows` scope, or apply the above edits manually via a PR.
+- Workflows updated
+  - .github/workflows/test.yml: add `permissions: contents: read`; pin checkout/setup-python
+  - .github/workflows/visual-testing.yml: pin checkout/setup-uv/upload-artifact; add fork guard to secret-using step
+  - .github/workflows/code-review.yml: pin checkout/setup-uv; add fork guard to secret-using step
+  - .github/workflows/fix-ci.yml: pin checkout; add fork guard using workflow_run head repository
+  - .github/workflows/translate-keys.yml: pin checkout; add fork guard to secret-using step
+  - .github/workflows/update-docs.yml: pin checkout; add fork guard to secret-using step
+  - .github/workflows/fix-conflicts.yml: pin checkout
+  - .github/workflows/secrets-audit.yml: pin checkout
 
-## Compare
-- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening
+- Permissions review
+  - Many workflows legitimately require `contents: write` and/or `pull-requests: write` to push branches or comment. No unnecessary broad permissions were identified beyond those functional needs.
 
-<!-- security-hardening-audit:2025-11-20 -->
+- Secrets exposure review
+  - No `.gitleaks.toml` found; no allowlist in place. Consider adding one if false positives arise in future scans.
+  - No high-confidence secrets found in tracked files. If any secret rotation is suspected from external context, rotate in your secret manager and in GitHub Actions secrets.
+  - Note: historical commit scanning is best handled with a dedicated tool (e.g., gitleaks or trufflehog). This pass covered the current working tree.
+
+Remediation guidance
+- Continue pinning all new workflow actions to SHAs.
+- Keep `permissions` blocks explicit; prefer least-privilege per job.
+- Avoid using `pull_request_target` unless absolutely necessary and guarded; prefer `pull_request` with `contents: read`.
+- For steps that require organization secrets, gate execution for forked PRs as done here.
+
+## Compare and Create PR
+- https://github.com/ericzakariasson/cursor-cli-examples/compare/main...audit-hardening?quick_pull=1
+
+<!-- security-hardening-audit:2025-12-04 -->
